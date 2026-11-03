@@ -30,11 +30,9 @@ Nothing is taken from that site but these style ideas: no images, logos, charact
 ## What is drawn, and how
 
 - **Corner webs** (`static/decor.js`): three procedural orb webs (14 spokes, a 15-turn sagging spiral, seeded) anchored top-right, top-left and bottom-left on a fixed 2D layer behind the page. First load: spun strand by strand in 1.5 s, then still. During a run they tremble, 2 px per request/s of the stack on their side (baseline left, TenantScaler right; the gateway's arrival rate from `/api/state`), at most 10 px.
-- **The spider** (`static/spider3d.js`, three.js r170): an original model after real jumping spiders and orb-weavers, built from primitives: cephalothorax with a raised carapace; eight eyes, two large glossy front eyes, placed on the carapace by raycasting; chelicerae with fangs; pedipalps; pedicel; a lathe-turned tapered abdomen with spinnerets; eight legs of four visible segments (femur, patella+tibia, metatarsus, tarsus), tapered cylinders with joint spheres, knees arching above the body. A runtime value-noise bump map; 1,752 hair instances (at most 2,000) on legs, carapace and abdomen; MeshPhysicalMaterial with clearcoat and sheen; key, fill and a strong rim light. One theme hue (blue dark, red light) and darker shades of it at the joints, fangs and eyes; no stripes, patterns, emblems or markings. Not modelled on any film or comic character.
-- **Hero**: the detailed spider (80 px tall) on a tilted 3D orb web in the hero card. Idle: abdomen breathing, a pedipalp twitch every 2.5-6.5 s, the head turning toward the pointer, a slight parallax tilt.
-- **Toggle**: the same model at 40 px with reduced detail (no hairs, fewer polygons) hanging on its thread; a `<button>` (44 x 44, focus ring, `aria-label` "Switch to light/dark theme"). On click or Enter/Space it drops with a twist, legs folding in and its colour blending to the next theme's; the theme switches at the bottom inside the glitch; it climbs back with an alternating four-leg gait. A rare idle leg twitch.
-- **One WebGL renderer** for both views: one canvas over the page (pointer-events none, aria-hidden), each view scissored to its DOM anchor.
-- **Fallbacks**: under Calm or without WebGL, the 2D SVG spider is the toggle and a 2D web with the SVG spider fills the hero slot; under reduced motion the 3D stays still.
+- **The spider** (inline SVG in `static/index.html`): an eight-legged silhouette in one theme colour (blue dark, red light) — a carapace, an abdomen and four legs a side, their knees arching above the body. No stripes, patterns, emblems or markings. Not modelled on any film or comic character.
+- **Hero**: the spider on an SVG orb web (12 spokes, four spiral bands) in the hero card, still.
+- **Toggle**: the same spider at 32 px hanging on a CSS thread; a `<button>` (44 x 44, focus ring, `aria-label` "Switch to light/dark theme"). On click or Enter/Space it drops, the theme switches at the bottom inside the glitch, and it climbs back. Under Calm or reduced motion the theme switches at once, with no drop.
 - **Comic layer** (`static/comic.js`, `style.css`): Bangers (SIL OFL 1.1, `static/fonts/`) for h1 and h2 only; halftone in the hero and section headers only; ink panels; captions and the glitch (below). Chart plots, axes, legends and the per-tenant tables keep the plain body font, no halftone, no shadows.
 
 ## Data stays readable
@@ -61,7 +59,6 @@ Nothing is taken from that site but these style ideas: no images, logos, charact
 
 ## Licences and sources
 
-- three.js r170: `static/vendor/three.module.min.js` from the npm tarball `three-0.170.0.tgz` (registry sha512 matched), MIT, `static/vendor/LICENSE-three.txt`; sha256 08fd7545d13d2c7fb65ab691530a802dafefd638596501854f267d0fb13c39e7.
 - Bangers: `static/fonts/Bangers-Regular.ttf` from github.com/google/fonts (ofl/bangers), SIL OFL 1.1, `static/fonts/OFL-Bangers.txt`; sha256 4160a7311de9342674cce9160cde9fcbb30f48190397d86ff1b70b455af65824.
 
 ## Checks

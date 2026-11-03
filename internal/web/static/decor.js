@@ -240,7 +240,7 @@ TS.Decor = (function () {
   }
 
   // refresh applies Calm, reduced motion and visibility: the switch, the
-  // root class, the "ts:calm" event (spider3d.js) and the web loop.
+  // root class, the "ts:calm" event and the web loop.
   function refresh() {
     const c = calm();
     root.classList.toggle("calm", c);
@@ -285,9 +285,8 @@ TS.Decor = (function () {
     setTimeout(() => root.classList.remove("theme-fade"), FADE_MS);
   }
 
-  // toggleTheme switches the theme: with the 3D spider when it is on
-  // (spider3d.js), else with the SVG spider dropping on its thread; under
-  // Calm or reduced motion at once.
+  // toggleTheme switches the theme with the spider dropping on its thread;
+  // under Calm or reduced motion at once.
   function toggleTheme() {
     if (busy) return;
     const next = TS.theme.current() === "dark" ? "light" : "dark";
@@ -296,13 +295,6 @@ TS.Decor = (function () {
       return;
     }
     busy = true;
-    const s3d = TS.Spider3D;
-    if (s3d && s3d.ready()) {
-      s3d.toggle(next, () => crossfade(() => TS.theme.choose(next))).then(() => {
-        busy = false;
-      });
-      return;
-    }
     els.toggle.classList.add("drop");
     setTimeout(() => {
       crossfade(() => TS.theme.choose(next));

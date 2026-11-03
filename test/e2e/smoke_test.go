@@ -187,7 +187,7 @@ func TestDemoSmoke(t *testing.T) {
 		}
 	}
 	for _, f := range []string{"/style.css", "/app.js", "/chart.js", "/decisions.js", "/theme.js", "/decor.js", "/comic.js",
-		"/spider3d.js", "/vendor/three.module.min.js", "/fonts/Bangers-Regular.ttf"} {
+		"/fonts/Bangers-Regular.ttf"} {
 		d.get(t, f, nil)
 	}
 
