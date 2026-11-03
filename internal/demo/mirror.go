@@ -6,7 +6,6 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
-	"strings"
 	"time"
 )
 
@@ -34,14 +33,6 @@ type mirror struct {
 func newMirror(ctx context.Context, primary, copy string, log *slog.Logger) *mirror {
 	return &mirror{primary: primary, copy: copy, ctx: ctx, log: log,
 		client: &http.Client{Transport: &http.Transport{DisableCompression: true, MaxIdleConnsPerHost: 64}}}
-}
-
-// NewMirror returns the mirroring handler on its own (tenantscaler mirror):
-// completions go to the primary gateway (TenantScaler), whose answer the
-// client gets, and a copy to the copy gateway (the baseline); copies end
-// with ctx.
-func NewMirror(ctx context.Context, primary, copy string, log *slog.Logger) http.Handler {
-	return newMirror(ctx, strings.TrimRight(primary, "/"), strings.TrimRight(copy, "/"), log)
 }
 
 func (m *mirror) ServeHTTP(w http.ResponseWriter, r *http.Request) {
