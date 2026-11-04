@@ -56,7 +56,7 @@ type LlamaSpec struct {
 	// replica owns its own cores. Empty = one physical core per replica
 	// assuming SMT siblings are adjacent (3, c, 30, c0, ...).
 	CPUMasks []string `json:"cpuMasks"`
-	// GPULayers is -ngl; 0 keeps inference on the CPU (see PLAN.md M1).
+	// GPULayers is -ngl; 0 keeps inference on the CPU.
 	GPULayers int `json:"gpuLayers"`
 	// CacheRAMMiB caps llama-server's host-memory prompt cache (--cache-ram);
 	// 0 disables it (the default: benchmark prompts are unique anyway).

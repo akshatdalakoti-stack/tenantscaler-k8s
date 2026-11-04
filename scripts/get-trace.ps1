@@ -1,5 +1,5 @@
-# Download the real trace used by `tenantscaler forecast-trace` (PLAN.md
-# decision Q18-A): the Azure LLM inference trace 2024, code, one week
+# Download the real trace used by `tenantscaler forecast-trace`: the Azure
+# LLM inference trace 2024, code, one week
 # (github.com/Azure/AzurePublicDataset, release dataset-llm-2024; CC-BY;
 # cite Stojkovic et al., "DynamoLLM", HPCA 2025). 692 MB into .cache/traces/;
 # size and SHA-256 are pinned, an interrupted download resumes.

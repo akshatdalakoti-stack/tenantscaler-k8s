@@ -2,7 +2,7 @@
 // class (P-cores and E-cores on hybrid CPUs such as the i5-14450HX) and
 // builds the affinity masks that pin each llama-server replica to one
 // physical P-core and the TenantScaler services to the remaining CPUs
-// (PLAN.md decision Q13). Detection uses GetLogicalProcessorInformationEx
+// (docs/DESIGN.md section 20). Detection uses GetLogicalProcessorInformationEx
 // on Windows; other platforms report ErrUnsupported.
 package topology
 

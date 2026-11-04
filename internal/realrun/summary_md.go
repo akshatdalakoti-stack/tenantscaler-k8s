@@ -183,7 +183,7 @@ func notMeasured(p Plan, sum Summary) []string {
 	if sum.Simulated {
 		lines = append(lines, "Real inference: these replicas are SIMULATED (modelled latencies).")
 	} else {
-		lines = append(lines, "GPU inference: replicas run on CPU cores only (backend.llama.gpuLayers 0, enforced; PLAN.md decision Q8); a GPU pool would behave differently.")
+		lines = append(lines, "GPU inference: replicas run on CPU cores only (backend.llama.gpuLayers 0, enforced); a GPU pool would behave differently.")
 	}
 	var colds []float64
 	for _, r := range sum.Results {

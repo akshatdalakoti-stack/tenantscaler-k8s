@@ -326,8 +326,8 @@ func spikeStats(d eval.RunData) (desired, lostPct float64) {
 }
 
 // The death spiral predicted for naive demand (BRIEF-v2 Q11) does NOT occur
-// in the full system, and this test records what happens instead
-// (PLAN.md decision Q11-R): it was first written to require that S8 run
+// in the full system, and this test records what happens instead:
+// it was first written to require that S8 run
 // fewer replicas than S7 during C's spike and lose more of C (commit
 // c3d68df), and S8 matched S7 exactly. TenantScaler's shed decision comes
 // from the same demand estimate (demand > grant), so a lower admitted-only

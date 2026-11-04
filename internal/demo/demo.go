@@ -1,5 +1,5 @@
 // Package demo serves the TenantScaler dashboard and runs its sequential A/B
-// comparison (DESIGN.md section 18, PLAN.md decision Q7).
+// comparison (docs/DESIGN.md section 18).
 //
 // Run A/B replays one recorded trace (workload.RealDemoScenario by default)
 // first on the baseline stack, S2-keda-queue (passthrough gateway + the
@@ -127,7 +127,7 @@ func (o Options) normalize() (Options, error) {
 		return o, fmt.Errorf("demo: config: %w", err)
 	}
 	if o.Config.Backend.Kind == config.BackendLlama && o.Config.Backend.Llama.GPULayers != 0 {
-		return o, fmt.Errorf("demo: backend.llama.gpuLayers is %d: real replicas run on the CPU only (gpuLayers 0; PLAN.md decision Q8)",
+		return o, fmt.Errorf("demo: backend.llama.gpuLayers is %d: real replicas run on the CPU only (gpuLayers 0)",
 			o.Config.Backend.Llama.GPULayers)
 	}
 	if err := o.Scenario.Validate(); err != nil {

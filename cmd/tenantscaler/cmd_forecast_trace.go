@@ -38,7 +38,7 @@ func runForecastTrace(args []string) error {
 	}
 	f, err := os.Open(*trace)
 	if err != nil {
-		return fmt.Errorf("open the trace (download it as PLAN.md decision Q18-A describes): %w", err)
+		return fmt.Errorf("open the trace (scripts/get-trace.ps1 downloads it): %w", err)
 	}
 	series, err := experiment.LoadAzureTrace(f, *bucket)
 	f.Close()

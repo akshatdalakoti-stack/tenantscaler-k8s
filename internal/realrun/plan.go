@@ -158,10 +158,10 @@ func (p Plan) normalize() (Plan, error) {
 }
 
 // cpuOnly rejects a llama backend that offloads layers to a GPU: real runs
-// stay on CPU cores (PLAN.md decision Q8), and their reports say so.
+// stay on CPU cores, and their reports say so.
 func cpuOnly(cfg config.Config) error {
 	if cfg.Backend.Kind == config.BackendLlama && cfg.Backend.Llama.GPULayers != 0 {
-		return fmt.Errorf("backend.llama.gpuLayers is %d: real replicas must run on the CPU only (gpuLayers 0; PLAN.md decision Q8)",
+		return fmt.Errorf("backend.llama.gpuLayers is %d: real replicas must run on the CPU only (gpuLayers 0)",
 			cfg.Backend.Llama.GPULayers)
 	}
 	return nil

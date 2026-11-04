@@ -1,6 +1,6 @@
 // Package llama runs REAL inference replicas: one llama.cpp llama-server
-// process per replica, pinned to its own CPU cores (PLAN.md decisions
-// Q5-Q8). A Launcher starts processes; each *Process implements
+// process per replica, pinned to its own CPU cores (docs/DESIGN.md
+// section 20). A Launcher starts processes; each *Process implements
 // pool.Instance, and NewBackend plugs a Launcher into a pool.Pool.
 //
 // No orphans: before its first launch TenantScaler joins a Windows Job

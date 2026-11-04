@@ -8,7 +8,7 @@
 # shares its core with at most one other; extra requests wait in the
 # gateway's fair queue, where A and B's priority applies.
 #
-# REAL inference configuration (PLAN.md decisions Q5-Q8, Q13).
+# REAL inference configuration (docs/DESIGN.md section 20).
 # Replicas are real llama.cpp llama-server processes (Qwen2.5-0.5B-Instruct
 # Q4_K_M), each pinned to one physical P-core (both hardware threads); the
 # gateway, controller and load generator run on the other CPUs. Budget: 4
