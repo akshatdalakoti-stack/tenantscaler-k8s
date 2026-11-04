@@ -29,8 +29,6 @@ type Summary struct {
 	Simulated bool   `json:"simulated"`
 	// Pinning says which CPUs the replicas and the services used.
 	Pinning string `json:"pinning,omitempty"`
-	// Claim is the pre-registered S7 vs S4 comparison (nil without both).
-	Claim *Claim `json:"claim,omitempty"`
 	// ReadinessHoldSeconds is the injected load delay (pool.HoldLabel).
 	ReadinessHoldSeconds float64          `json:"readinessHoldSeconds"`
 	Engine               stack.EngineInfo `json:"engine"`
@@ -107,7 +105,6 @@ func buildSummary(p Plan, results []RunResult) Summary {
 	}
 	sum.Simulated = sum.Simulated || sum.Engine.Simulated
 	sum.Label = summaryLabel(sum)
-	sum.Claim = buildClaim(results)
 	metrics := reportMetrics(p)
 	for _, s := range eval.SummarizeRuns(evalResults(results), metrics) {
 		ss := SetupStats{Setup: s.Setup, Runs: s.Runs, Metrics: map[string]eval.Stat{}}

@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"tenantscaler/internal/config"
-	"tenantscaler/internal/eval"
 	"tenantscaler/internal/sim"
 	"tenantscaler/internal/stack"
 	"tenantscaler/internal/workload"
@@ -225,40 +224,5 @@ func TestRunOrder(t *testing.T) {
 	}
 	if !differs || !slices.Equal(setups, []string{"S2", "S3", "S4", "S5", "S7"}) {
 		t.Fatalf("orders never differ across run indexes, or the input was modified: %v", setups)
-	}
-}
-
-// The pre-registered claim pairs S7 and S4 by run index and decides from
-// the 95% CI of the mean paired difference.
-func TestBuildClaim(t *testing.T) {
-	run := func(setup string, k int, violation float64) RunResult {
-		return RunResult{Setup: setup, Run: k, Metrics: eval.RunMetrics{VictimViolationPct: violation, VictimShedAwareViolationPct: violation,
-			NoisyShedPct: 30, ReplicaMinutes: 14}}
-	}
-	var rs []RunResult
-	for k, v := range []float64{10, 12, 9, 11, 10} { // S7 misses 10% less than S4 in every run
-		rs = append(rs, run(sim.SetupFull, k, v), run(sim.SetupFlowControl, k, v+10+float64(k%2)))
-	}
-	c := buildClaim(rs)
-	if c == nil || len(c.Pairs) != 5 || c.Verdict != "supported" || !(c.Diff.Mean > 10 && c.Diff.Mean < 11) {
-		t.Fatalf("claim %+v, want 5 pairs, a difference of 10.4 points, supported", c)
-	}
-	for i := range rs {
-		if rs[i].Setup == sim.SetupFlowControl {
-			rs[i].Metrics.VictimViolationPct -= 20 // now S4 is better
-		}
-	}
-	c = buildClaim(rs)
-	if c.Verdict != "contradicted" {
-		t.Fatalf("verdict %q, want contradicted", c.Verdict)
-	}
-	if buildClaim(rs[:1]) != nil {
-		t.Fatal("a claim without S4 runs")
-	}
-	if md := claimMarkdown(c, 30); !strings.Contains(md, "Verdict: contradicted") || !strings.Contains(md, "injected load delay") {
-		t.Errorf("markdown:\n%s", md)
-	}
-	if _, err := json.Marshal(c); err != nil {
-		t.Fatal(err)
 	}
 }

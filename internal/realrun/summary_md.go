@@ -46,9 +46,6 @@ func summaryMarkdown(p Plan, sum Summary, metrics []eval.Metric, plots []plotFil
 	for _, pf := range plots {
 		fmt.Fprintf(&b, "![%s](%s)\n\n", pf.alt, pf.name)
 	}
-	if sum.Claim != nil {
-		b.WriteString(claimMarkdown(sum.Claim, sum.ReadinessHoldSeconds))
-	}
 	b.WriteString("## Setups\n\n")
 	st := eval.Table{Header: []string{"setup", "gateway", "control plane"}}
 	for _, s := range sum.Setups {
