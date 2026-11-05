@@ -34,7 +34,28 @@ function Need($exe, $hint) {
     if (-not (Get-Command $exe -ErrorAction SilentlyContinue)) { throw "$exe is not on PATH. $hint" }
 }
 function Run($exe, $argv) {
-    & $exe @argv
+    # The exit code is the only thing that decides whether a step failed.
+    # Plenty of these commands write ordinary progress to stderr -- `kind
+    # load docker-image` announces "not yet present on node ..., loading..."
+    # there, and `kubectl rollout status` reports waiting the same way. In
+    # Windows PowerShell 5.1, as soon as that stream is redirected or piped
+    # anywhere, each stderr line arrives as a NativeCommandError, which
+    # $ErrorActionPreference = 'Stop' turns into a thrown exception. Without
+    # this the script works when run bare and dies when someone captures its
+    # output, which is exactly when they want a log.
+    # Merging the streams and unwrapping each ErrorRecord back into its text
+    # keeps that progress readable as the plain line it was, instead of a red
+    # error block in the middle of a successful deploy. Nothing is hidden: a
+    # failing command's own message is printed the same way, and then the
+    # exit code raises the error that stops the script.
+    $old = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try {
+        & $exe @argv 2>&1 | ForEach-Object {
+            if ($_ -is [Management.Automation.ErrorRecord]) { Write-Output $_.Exception.Message }
+            else { Write-Output $_ }
+        }
+    } finally { $ErrorActionPreference = $old }
     if ($LASTEXITCODE -ne 0) { throw "$exe $($argv -join ' ') failed with exit code $LASTEXITCODE" }
 }
 # Probe runs a command we EXPECT may fail, and reports the exit code instead
@@ -168,17 +189,29 @@ if ($Simulated) {
 
 # Same image tag with new contents, and keys are only read at start: restart
 # everything running our binary so no pod is left on the old one.
-Step 'restarting the pods'
-$ours = @('gateway', 'tenantscaler-controller', 'dashboard', 'tenant-a', 'tenant-b', 'tenant-c')
-if ($Simulated) { $ours += 'model-pool' }
-foreach ($d in $ours) { Run kubectl @('-n', $ns, 'rollout', 'restart', "deployment/$d") }
-
-Step 'waiting for the rollout'
+#
+# In two phases, serving side first. A tenant pod that starts while the
+# gateway is still rolling spends its first seconds on "connection refused".
+# It retries and carries on, but those failures land in its first reporting
+# window and in the controller's first cycles, which makes the opening
+# numbers look worse than the system is — and this project exists to measure
+# exactly those numbers.
+Step 'restarting the serving side'
+$serving = @('gateway', 'tenantscaler-controller')
+if ($Simulated) { $serving += 'model-pool' }
+foreach ($d in $serving) { Run kubectl @('-n', $ns, 'rollout', 'restart', "deployment/$d") }
 if (-not $Simulated) {
-    Write-Output '    the first llama.cpp rollout also pulls a 309 MB image into the node, so give it a few minutes'
+    Write-Output '    a first llama.cpp rollout also pulls a 309 MB image into the node, so give it a few minutes'
 }
-foreach ($d in $ours) { Run kubectl @('-n', $ns, 'rollout', 'status', "deployment/$d", '--timeout=420s') }
+foreach ($d in $serving) { Run kubectl @('-n', $ns, 'rollout', 'status', "deployment/$d", '--timeout=420s') }
+# The replicas are not restarted with real llama.cpp pods (that would throw
+# away four loaded models), but the tenants must still wait until they serve.
 Run kubectl @('-n', $ns, 'rollout', 'status', 'deployment/model-pool', '--timeout=420s')
+
+Step 'restarting the dashboard and the tenants'
+$clients = @('dashboard', 'tenant-a', 'tenant-b', 'tenant-c')
+foreach ($d in $clients) { Run kubectl @('-n', $ns, 'rollout', 'restart', "deployment/$d") }
+foreach ($d in $clients) { Run kubectl @('-n', $ns, 'rollout', 'status', "deployment/$d", '--timeout=420s') }
 
 Write-Output ''
 Run kubectl @('-n', $ns, 'get', 'tenantscalers,deployments,pods')

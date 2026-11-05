@@ -127,22 +127,30 @@ fi
 
 step 'applying TenantScaler'
 kubectl apply -f deploy/k8s/
-ours="gateway tenantscaler-controller dashboard tenant-a tenant-b tenant-c"
+serving="gateway tenantscaler-controller"
 if [ "$simulated" -eq 1 ]; then
 	kubectl -n "$ns" set env deployment/dashboard TS_OBSERVE_REPLICAS=simulated
-	ours="$ours model-pool"
+	serving="$serving model-pool"
 else
 	step 'swapping in the real llama.cpp replicas'
 	kubectl apply -f deploy/kind/05-models.yaml -f deploy/kind/10-model-pool.yaml
 fi
 
-step 'restarting the pods'
-for d in $ours; do kubectl -n "$ns" rollout restart "deployment/$d"; done
-
-step 'waiting for the rollout'
-[ "$simulated" -eq 1 ] || echo '    the first llama.cpp rollout also pulls a 309 MB image into the node, so give it a few minutes'
-for d in $ours; do kubectl -n "$ns" rollout status "deployment/$d" --timeout=420s; done
+# Two phases, serving side first: a tenant pod that starts while the gateway
+# is still rolling spends its first seconds on "connection refused", and
+# those failures land in its first reporting window.
+step 'restarting the serving side'
+for d in $serving; do kubectl -n "$ns" rollout restart "deployment/$d"; done
+[ "$simulated" -eq 1 ] || echo '    a first llama.cpp rollout also pulls a 309 MB image into the node, so give it a few minutes'
+for d in $serving; do kubectl -n "$ns" rollout status "deployment/$d" --timeout=420s; done
+# The replicas are not restarted with real llama.cpp pods, but the tenants
+# must still wait until they serve.
 kubectl -n "$ns" rollout status deployment/model-pool --timeout=420s
+
+step 'restarting the dashboard and the tenants'
+clients="dashboard tenant-a tenant-b tenant-c"
+for d in $clients; do kubectl -n "$ns" rollout restart "deployment/$d"; done
+for d in $clients; do kubectl -n "$ns" rollout status "deployment/$d" --timeout=420s; done
 
 echo
 kubectl -n "$ns" get tenantscalers,deployments,pods
