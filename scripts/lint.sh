@@ -14,7 +14,10 @@ js_ok=1
 while IFS= read -r f; do node --check "$f" || { js_ok=0; failed=1; }; done < <(find internal/web/static -name '*.js')
 [ "$js_ok" = 1 ] && echo "node --check: OK"
 
-if python3 -m py_compile scripts/dev/resource_guard.py scripts/dev/heavy.py; then echo "py_compile: OK"; else failed=1; fi
+# Every Python script under scripts/, found rather than listed, so a new
+# one is checked without editing this file.
+pyfiles=$(find scripts -name "*.py" | sort)
+if python3 -m py_compile $pyfiles; then echo "py_compile: OK"; else failed=1; fi
 
 if [ "$failed" = 1 ]; then echo "LINT FAILED"; exit 1; fi
 echo "LINT OK"

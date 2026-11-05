@@ -17,7 +17,10 @@ Get-ChildItem -Recurse -Filter *.js internal/web/static | ForEach-Object {
 }
 if (-not $failed) { Write-Output "node --check: OK" }
 
-python -m py_compile scripts/dev/resource_guard.py scripts/dev/heavy.py
+# Every Python script under scripts/, found rather than listed, so a new
+# one is checked without editing this file.
+$pyfiles = @(Get-ChildItem -Path scripts -Recurse -Filter *.py | ForEach-Object { $_.FullName })
+python -m py_compile @pyfiles
 if ($LASTEXITCODE -ne 0) { $failed = $true } else { Write-Output "py_compile: OK" }
 
 if ($failed) { Write-Output "LINT FAILED"; exit 1 }
