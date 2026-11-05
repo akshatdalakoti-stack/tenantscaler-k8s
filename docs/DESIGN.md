@@ -1,7 +1,8 @@
 # TenantScaler — Design and Package Contracts
 
-This is the implementation contract every package follows. `PLAN.md` holds the
-requirements; this file holds the APIs. Module path: `tenantscaler`. Go 1.27.
+This is the implementation contract every package follows: what each package
+owns and what its API is. `README.md` holds the requirements and the results;
+this file holds the APIs. Module path: `tenantscaler`. Go 1.27.
 
 ## 0. Conventions (all packages)
 
