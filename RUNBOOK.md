@@ -111,8 +111,16 @@ go test ./internal/k8s/              # manifests: identities, overlays, security
 For a change that touches no manifest, `-SkipBuild` is not what you want (it reuses the old image); it is for when you want to re-apply manifests without Go installed. To iterate on the dashboard's JS alone, run it host-side against the cluster instead of rebuilding the image each time:
 
 ```powershell
+# 15-config.yaml is a ConfigMap, so the config itself sits under
+# data["config.yaml"]; -config wants that block, not the wrapper. Take it
+# from the running cluster, which is the one that is definitely current:
+New-Item -ItemType Directory -Force .run | Out-Null
+kubectl -n tenantscaler get configmap tenantscaler-config -o jsonpath='{.data.config\.yaml}' > .run/config.yaml
+
 $env:TS_ADMIN_KEY = (Select-String -Path "$env:USERPROFILE\.tenantscaler\kind.env" -Pattern '^TS_ADMIN_KEY=').Line.Split('=')[1]
-bin/tenantscaler.exe demo -config deploy/k8s/15-config.yaml -observe-gateway http://127.0.0.1:8081 -observe-controller http://127.0.0.1:18090 -observe-replicas llama -addr 127.0.0.1:8090
+bin/tenantscaler.exe demo -config .run/config.yaml -observe-gateway http://127.0.0.1:8081 -observe-controller http://127.0.0.1:18090 -observe-replicas llama -addr 127.0.0.1:8090
 ```
+
+(In the pods there is no such step: the volume mount exposes the ConfigMap's key as the file `/etc/tenantscaler/config.yaml` directly.)
 
 That reaches the cluster through the node ports and serves the dashboard from your working tree, so a reload picks up edits. Note it needs a port other than 8080, which the cluster's dashboard already has.

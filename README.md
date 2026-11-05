@@ -188,7 +188,9 @@ The `internal/k8s` tests are worth knowing about: they parse every manifest unde
 
 ## Status
 
-Unit tests and `go vet` pass, and the manifests are checked by the tests above. The kind path has not yet been run end to end on this machine: Docker Desktop 4.90.0 here crashes at startup on a stale socket, which is a local fault rather than a project one. Delete the install's leftover `.stale` sockets and it starts:
+Unit tests, `go vet` and `./scripts/lint.ps1` pass, and the manifests are checked by the tests above. Verified by hand too: the three PowerShell scripts parse, `scripts/keys.ps1` writes a key file in the LF, no-BOM shape `kubectl --from-env-file` needs, and the gateway starts on the cluster's own config with those keys (`config OK: pool "shared-llm-pool" capacity 4 replicas, 3 tenants`, then `tenantKeys=3 adminKey=true`, dispatch window 2 per replica).
+
+What has **not** run yet is the cluster itself, end to end. Docker Desktop 4.90.0 on this machine crashes at startup on a socket it cannot rename, which is a local fault rather than a project one — both `sailor-ingest.sock` and its `.stale` target exist, so the rename has nowhere to go. With Docker Desktop not running:
 
 ```powershell
 Remove-Item "$env:LOCALAPPDATA\Docker\run\*.stale" -Force
