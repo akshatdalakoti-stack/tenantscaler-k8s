@@ -6,8 +6,8 @@ import (
 	"tenantscaler/internal/replica"
 )
 
-// HoldLabel is how every report must describe a readiness hold (BRIEF-v2
-// Q12): the delay is injected, the inference is real.
+// HoldLabel is how every report must describe a readiness hold: the
+// delay is injected, the inference is real.
 const HoldLabel = "injected load delay (emulates network model load); inference is real"
 
 // WithReadinessHold wraps a backend so that every replica it launches is

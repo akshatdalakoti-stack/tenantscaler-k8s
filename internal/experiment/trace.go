@@ -22,7 +22,7 @@ import (
 	"tenantscaler/internal/workload"
 )
 
-// TraceCitation credits the real trace (CC-BY; BRIEF-v2 Q18).
+// TraceCitation credits the real trace (CC-BY).
 const TraceCitation = "Azure LLM inference trace 2024 (code, one week), github.com/Azure/AzurePublicDataset, " +
 	"release dataset-llm-2024; Stojkovic et al., \"DynamoLLM: Designing LLM Inference Clusters for Performance " +
 	"and Energy Efficiency\", HPCA 2025 (CC-BY)"

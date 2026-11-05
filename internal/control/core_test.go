@@ -299,7 +299,7 @@ func spiralLoop(t *testing.T, naive bool, cycles int) (grantC, desired []int, un
 	return grantC, desired, unserved
 }
 
-// The death-spiral mechanism (BRIEF-v2 Q11) in the control core, with a
+// The death-spiral mechanism in the control core, with a
 // gateway that sheds C's whole sheddable share while flagged (more than the
 // excess): under naive demand the shed share is missing from C's measured
 // demand, so C's grant and the pool's desired size fall while C's offered

@@ -147,7 +147,7 @@ func (c *Core) Step(obs model.Observation) Decision {
 	for i, t := range c.tenants {
 		o := byName[t.spec.Name]
 		// Demand is the OFFERED load: every arrival, shed ones included, so
-		// shedding never lowers the demand it responds to (BRIEF-v2 Q11).
+		// shedding never lowers the demand it responds to.
 		// The S8 ablation counts admitted requests only.
 		rate := math.Max(o.ArrivalWeightedTokensPerSec, 0)
 		if ctl.NaiveDemand {

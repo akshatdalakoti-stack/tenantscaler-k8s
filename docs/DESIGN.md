@@ -632,7 +632,7 @@ slots, and the noisy tenant is shed more. Reservation is kept because it makes a
 when service times are long relative to the TTFT SLO (the real testbed); the ablation is
 reported next to S7.
 
-## 20. CPU pinning, replica scaling curve and the SLO derivation (BRIEF-v2 N2)
+## 20. CPU pinning, replica scaling curve and the SLO derivation
 
 **Topology** (`internal/topology`, Windows `GetLogicalProcessorInformationEx`): physical cores
 with their efficiency class; P-cores = the highest class. On the development machine
@@ -653,7 +653,7 @@ k pinned replicas are loaded at once, each closed-loop at concurrency = slots pe
 gateway's dispatch window), in one common window; throughput is summed and percentiles pooled.
 
 **Derivation rules, fixed before the measurement** (`realrun.DeriveBudget`):
-- TTFT SLO: p99 ≤ 2 s (BRIEF-v2).
+- TTFT SLO: p99 ≤ 2 s.
 - TPOT SLO: 1.25 × the pooled p99 TPOT with the whole budget loaded at the dispatch window,
   rounded up to 10 ms. Rationale: that is the best service the budget can give (no queueing in
   front of the replicas); with a 25% margin for jitter, a healthy full pool meets the SLO, so a
@@ -662,8 +662,8 @@ gateway's dispatch window), in one common window; throughput is summed and perce
   number of replicas, i.e. one replica's capacity while the whole budget is busy (interference
   included). The single-replica profile's C is reported alongside for reference.
 - The full budget's pooled p99 TTFT must meet the TTFT SLO; otherwise the budget is too large
-  for the SLO and is reduced (BRIEF-v2 Q13: "keep budget = 4 unless the new profile says
-  otherwise").
+  for the SLO and is reduced. The budget stays at 4 unless a new profile says
+  otherwise.
 
 **Measured 2026-10-27** (REAL; `results/real/scaling.md`, `scaling.csv`, `profile.md`; replicas on
 CPUs 0-1 | 2-3 | 4-5 | 6-7, services on 8-15; 60 s per level after 5 s warm-up, 4 concurrent
@@ -684,7 +684,7 @@ single-replica profile (cold start 605 ms, C = 136 at concurrency 4) and its eng
 are within 25% at concurrency 1–5, with one deviation at concurrency 6 (p50 TTFT +28%), outside
 the dispatch window.
 
-## 21. Offered demand, the S8 ablation and the death-spiral finding (BRIEF-v2 N3, Q11)
+## 21. Offered demand, the S8 ablation and the death-spiral finding
 
 The gateway's `/stats` (and the simulator) report two rates per tenant: **offered** weighted
 tokens (`arrivalWeightedTokensPerSec`, every arrival, shed ones included, output counted as
@@ -696,7 +696,7 @@ Tests were written before the switch existed (commit c3d68df). `TestNaiveDemandS
 core in a closed loop with a gateway that sheds C's whole sheddable share while flagged) shows
 the mechanism: under naive demand C's grant falls 8 → 4 and the desired pool 10 → 6 while C's
 offered load is unchanged; offered demand holds 8 and 10. The simulator test, however, found
-**no spiral in the full system**: S8 matched S7 (PLAN.md Q11-R has the numbers). Reasons:
+**no spiral in the full system**: S8 matched S7 exactly. Reasons:
 TenantScaler's shed decision is itself "demand > grant", computed from the same estimate, so a
 low admitted-only reading switches shedding off and the next reading recovers; and over-share
 shedding removes only the excess while the pool is contended, so admitted load stays at or
@@ -704,7 +704,7 @@ above the budget-capped grant. A spiral needs shedding that is independent of th
 signal; S4 (saturation shedding + KEDA on the gateway queue) has that shape and scales down in
 the middle of a spike (`TestFlowControlMetricBlindSpot`). The test now records the finding.
 
-## 22. Real harness (BRIEF-v2 N4): S4, readiness hold, interleaving, tokenizer counting
+## 22. Real harness: S4, readiness hold, interleaving, tokenizer counting
 
 - **Setups:** `realrun` runs S2, S3, S4, S5, S7 by default (decision Q10); S4 is the
   Flow-Control-equivalent baseline (roundrobin gateway, KEDA on the gateway queue).
@@ -728,7 +728,7 @@ the middle of a spike (`TestFlowControlMetricBlindSpot`). The test now records t
   such fallbacks (expected 0). The simulated path counts words by design. The load generator's
   records use the server's `usage` counts.
 
-## 23. Live multi-laptop demo (BRIEF-v2 N5, decision Q16)
+## 23. Live multi-laptop demo
 
 - **Keys:** `TS_TENANT_KEYS="A:standard=<key>,B:standard=<key>,C:sheddable=<key>"` (`gateway.ParseTenantKeys`).
   A key decides the tenant and its highest priority; a priority header may only lower it; a

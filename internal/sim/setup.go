@@ -35,8 +35,8 @@ const (
 	// SetupFullForecast is SetupFull plus the Holt-Winters forecaster.
 	SetupFullForecast = "S7F-ts-full-forecast"
 	// SetupNaiveDemand is SetupFull with naive demand: admitted (not shed)
-	// weighted tokens instead of offered ones, the death-spiral ablation
-	// (BRIEF-v2 Q11).
+	// weighted tokens instead of offered ones, the death-spiral
+	// ablation.
 	SetupNaiveDemand = "S8-ts-naive-demand"
 	// SetupFlowControlOutstanding is a sensitivity variant of
 	// SetupFlowControl, not one of the specified setups: the same

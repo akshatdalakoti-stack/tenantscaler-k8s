@@ -325,7 +325,7 @@ func spikeStats(d eval.RunData) (desired, lostPct float64) {
 	return desired / float64(n), 100 * float64(lost) / float64(total)
 }
 
-// The death spiral predicted for naive demand (BRIEF-v2 Q11) does NOT occur
+// The death spiral predicted for naive demand does NOT occur
 // in the full system, and this test records what happens instead:
 // it was first written to require that S8 run
 // fewer replicas than S7 during C's spike and lose more of C (commit

@@ -92,8 +92,8 @@ type ControllerSpec struct {
 	// over-share tenant may take any free slot (ablation).
 	DisableSlotReservation bool `json:"disableSlotReservation"`
 	// NaiveDemand estimates demand from admitted (not shed) weighted
-	// tokens instead of offered ones: the death-spiral ablation S8
-	// (BRIEF-v2 Q11). It needs the gateway metrics source.
+	// tokens instead of offered ones: the death-spiral ablation S8.
+	// It needs the gateway metrics source.
 	NaiveDemand bool         `json:"naiveDemand"`
 	Forecast    ForecastSpec `json:"forecast"`
 }

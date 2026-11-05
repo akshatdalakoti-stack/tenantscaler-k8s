@@ -113,7 +113,7 @@ type TenantObservation struct {
 	// shed) so that demand reflects true load, not what was let through.
 	ArrivalWeightedTokensPerSec float64 `json:"arrivalWeightedTokensPerSec"`
 	// AdmittedWeightedTokensPerSec counts only the arrivals that were not
-	// shed: the naive demand signal of the S8 ablation (BRIEF-v2 Q11), not
+	// shed: the naive demand signal of the S8 ablation, not
 	// what the controller uses by default.
 	AdmittedWeightedTokensPerSec float64 `json:"admittedWeightedTokensPerSec"`
 	ArrivalRequestsPerSec        float64 `json:"arrivalRequestsPerSec"`

@@ -12,7 +12,8 @@ import (
 // curve into the real configuration's SLO and capacity. They are fixed
 // before the measurement they are applied to.
 const (
-	// TTFTSLOSeconds is the time-to-first-token bound (BRIEF-v2 N2).
+	// TTFTSLOSeconds is the time-to-first-token bound (docs/DESIGN.md
+	// section 20).
 	TTFTSLOSeconds = 2.0
 	// TPOTSLOMargin multiplies the full budget's pooled p99 TPOT.
 	TPOTSLOMargin = 1.25
