@@ -54,13 +54,16 @@ curl -s 127.0.0.1:18090/status | python -m json.tool
 
 ## When something is wrong
 
-**The Docker daemon is not answering.** Docker Desktop 4.90.0 on this machine crashes at startup on a socket it cannot rename: `initializing Ingest server: ... rename sailor-ingest.sock sailor-ingest.sock.stale: The file cannot be accessed by the system`. Both the socket and its `.stale` target exist, so the rename has nowhere to go. With Docker Desktop not running:
+**The Docker daemon is not answering.** Docker Desktop 4.90.0 on this machine sometimes dies at startup on a socket it cannot rename, and shows *An unexpected error occurred* with only *Quit* and *Reset to factory defaults*:
 
-```powershell
-Remove-Item "$env:LOCALAPPDATA\Docker\run\*.stale" -Force
+```
+starting services: initializing Ingest server: listening on unix://.../sailor-ingest.sock:
+rename sailor-ingest.sock sailor-ingest.sock.stale: The file cannot be accessed by the system
 ```
 
-Then start Docker Desktop and wait for it to settle. Its error dialog also offers *Reset to factory defaults*, which works but throws away every image and container.
+**Just launch it again.** That is what clears it. The two files it is complaining about, `%LOCALAPPDATA%\Docker\run\sailor-ingest.sock.stale` and `dockerInference.stale`, are orphaned socket reparse points that Windows itself cannot touch — `Remove-Item -Force` on them returns the very same *The file cannot be accessed by the system*, which is exactly why Docker's rename fails. So deleting them is not an option and not the fix; they sit there harmlessly while a fresh start recreates the live sockets beside them.
+
+Reach for the dialog's *Reset to factory defaults* only if relaunching keeps failing: it works, and it throws away every image and container, which on this project means another 309 MB llama.cpp pull.
 
 **Pods `Pending`.** Almost always CPU or memory. See *Changing the sizing* above. Docker Desktop's VM size is in its own settings (Resources).
 

@@ -37,14 +37,26 @@ function Run($exe, $argv) {
     & $exe @argv
     if ($LASTEXITCODE -ne 0) { throw "$exe $($argv -join ' ') failed with exit code $LASTEXITCODE" }
 }
+# Probe runs a command we EXPECT may fail, and reports the exit code instead
+# of throwing. It exists because of a Windows PowerShell 5.1 trap: when a
+# native command's stderr is redirected, each stderr line is wrapped in a
+# NativeCommandError, which $ErrorActionPreference = 'Stop' then turns into
+# a thrown exception. `docker info` on a dead daemon and `kubectl get` on an
+# absent object both write to stderr as their normal way of saying no, so
+# redirecting their output would abort the script on the ordinary path.
+function Probe($exe, $argv) {
+    $old = $ErrorActionPreference
+    $ErrorActionPreference = 'Continue'
+    try { $out = & $exe @argv 2>&1 | Out-String } finally { $ErrorActionPreference = $old }
+    [pscustomobject]@{ Ok = ($LASTEXITCODE -eq 0); Out = $out }
+}
 
 # ---------------------------------------------------------------- preflight
 Step 'checking the tools'
 Need docker  'Install Docker Desktop, or point DOCKER_HOST at any Docker daemon.'
 Need kind    'Install kind: https://kind.sigs.k8s.io/docs/user/quick-start/'
 Need kubectl 'Install kubectl: https://kubernetes.io/docs/tasks/tools/'
-docker info *> $null
-if ($LASTEXITCODE -ne 0) {
+if (-not (Probe docker @('info')).Ok) {
     throw 'The Docker daemon is not answering. Start Docker Desktop, wait for it to settle, then run this again.'
 }
 if (-not $SkipBuild) { Need go 'Install Go 1.27, or pass -SkipBuild to reuse the image already in Docker.' }
@@ -134,8 +146,12 @@ try {
     kubectl -n $ns create secret generic tenantscaler-keys --from-env-file=$Keys --dry-run=client -o yaml |
         Set-Content -Encoding utf8 $tmp
     if ($LASTEXITCODE -ne 0) { throw 'building the Secret failed' }
-    kubectl -n $ns get secret tenantscaler-keys *> $null
-    if ($LASTEXITCODE -eq 0) { Run kubectl @('-n', $ns, 'replace', '-f', $tmp) }
+    # --ignore-not-found: an absent Secret comes back as empty output and
+    # exit 0, rather than as an error on stderr. That keeps the first run,
+    # where there is nothing to replace yet, on the ordinary path.
+    $existingSecret = kubectl -n $ns get secret tenantscaler-keys --ignore-not-found -o name
+    if ($LASTEXITCODE -ne 0) { throw 'could not ask the cluster about the Secret' }
+    if ($existingSecret) { Run kubectl @('-n', $ns, 'replace', '-f', $tmp) }
     else { Run kubectl @('-n', $ns, 'create', '-f', $tmp) }
 } finally { Remove-Item -Force $tmp -ErrorAction SilentlyContinue }
 
