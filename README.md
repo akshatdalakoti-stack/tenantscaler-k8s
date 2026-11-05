@@ -190,11 +190,36 @@ The `internal/k8s` tests are worth knowing about: they parse every manifest unde
 
 Unit tests, `go vet` and `./scripts/lint.ps1` pass. Every manifest, the new ones included, is decoded into its typed Go struct with strict field validation — the same rules the API server applies, so a misspelled, wrongly cased or misplaced field fails the build rather than the deploy. Verified by hand too: the three PowerShell scripts parse, `scripts/keys.ps1` writes a key file in the LF, no-BOM shape `kubectl --from-env-file` needs, and the gateway starts on the cluster's own config with those keys (`config OK: pool "shared-llm-pool" capacity 4 replicas, 3 tenants`, then `tenantKeys=3 adminKey=true`, dispatch window 2 per replica). The model is downloaded and its SHA-256 matches the pin.
 
-What has **not** run yet is the cluster itself, end to end. Docker Desktop 4.90.0 on this machine crashes at startup on a socket it cannot rename, which is a local fault rather than a project one — both `sailor-ingest.sock` and its `.stale` target exist, so the rename has nowhere to go. With Docker Desktop not running:
+The cluster runs. `./scripts/up.ps1` goes from nothing to a working stack and exits 0, with all ten pods ready and the dashboard answering 200 on `http://127.0.0.1:8080` under the badge **KUBERNETES: REAL llama.cpp replicas**. Everything below came out of that cluster, not the simulator.
+
+Arbitration, with the controller's own wording. During c's spike:
+
+```
+Pool: grants add up to 4, desired 4 of 4, applying 4.
+  c got 1 replica: its guarantee of 1; no spare capacity was left to borrow.
+    It wanted 11, so its sheddable requests get 429 until capacity frees up.
+  b got 2 replicas: guarantee 1 plus 1 borrowed, its full demand.
+```
+
+c was offering 1008 weighted tokens/s and 59.1 were admitted, with 50 requests shed; its own tenant pod logged `answered 11  429 64`. The same moment seen through the resources, which is the claim in one line — the noisy tenant is the only one shed, and the quiet ones keep what they were promised:
+
+```
+NAME   POOL              GUARANTEED   MAX   GRANT   DEMAND   SHEDDING
+a      shared-llm-pool   1            3     1       1        false
+b      shared-llm-pool   1            3     1       1        false
+c      shared-llm-pool   1            3     2       4        true
+```
+
+When c and b went quiet instead, the log reads *"its guarantee of 1 is free for others to borrow until it needs it back"*, and the stabiliser held the pool up rather than collapsing it: *"desired 1 of 4, applying 4. Scale-down waits for demand to stay low for 60s."* Over 80 cycles there was no fail-static.
+
+**The one number that needs re-measuring is `replicaCapacityTokensPerSec`.** In a cycle where the pool had been sized to 3, tenant a showed a p99 TTFT of 7.3 s against its 2 s SLO. The committed 117 is a bare-metal figure from one CPU-pinned `llama-server` per physical P-core; these pods are neither pinned nor on bare metal, so the controller credits each replica with more throughput than it has and under-sizes the pool. That is a calibration input, not a fairness failure — the shares themselves were honoured throughout — but it has to be re-measured here before any latency from this cluster means anything:
 
 ```powershell
-Remove-Item "$env:LOCALAPPDATA\Docker\run\*.stale" -Force
+./scripts/setup-llama.ps1
+bin/tenantscaler.exe profile -config config/real.yaml
 ```
+
+If Docker Desktop will not start, see the first entry under *When something is wrong* in `RUNBOOK.md`.
 
 ## Configuration
 
