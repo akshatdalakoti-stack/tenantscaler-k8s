@@ -170,7 +170,12 @@ func TestSampleTenantsAreValid(t *testing.T) {
 		t.Fatalf("controller -capacity: %v", err)
 	}
 
-	wantSLO := model.SLO{TTFTSeconds: 2, TPOTMillis: 100, TargetFraction: 0.99}
+	// The single-PC sizing of deploy/k8s/15-config.yaml and 40-tenants.yaml:
+	// a budget of 4 llama.cpp pods, each tenant guaranteed 1 and capped at
+	// 3. TPOT 200 ms is the measured SLO of the real replica
+	// (config/real.yaml), not the illustrative 100 ms of the GPU-like
+	// default pool.
+	wantSLO := model.SLO{TTFTSeconds: 2, TPOTMillis: 200, TargetFraction: 0.99}
 	var specs []model.TenantSpec
 	for _, m := range byKind(deployed(ms), Kind) {
 		ts, err := FromUnstructured(m.obj)
@@ -182,8 +187,8 @@ func TestSampleTenantsAreValid(t *testing.T) {
 		if ts.Spec.Pool != flags["-pool"] {
 			t.Errorf("%v: pool %q is not the controller's -pool %q", m, ts.Spec.Pool, flags["-pool"])
 		}
-		if ts.Spec.GuaranteedReplicas != 3 || ts.Spec.MaxReplicas != 8 || ts.Spec.SLO != wantSLO {
-			t.Errorf("%v: spec = %+v, want guarantee 3, max 8, SLO %+v", m, ts.Spec, wantSLO)
+		if ts.Spec.GuaranteedReplicas != 1 || ts.Spec.MaxReplicas != 3 || ts.Spec.SLO != wantSLO {
+			t.Errorf("%v: spec = %+v, want guarantee 1, max 3, SLO %+v", m, ts.Spec, wantSLO)
 		}
 		specs = append(specs, ts.TenantSpec())
 	}

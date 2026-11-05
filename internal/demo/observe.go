@@ -23,14 +23,16 @@ const (
 	observeDecisionsLimit = 300
 )
 
-// ObserveTarget is a TenantScaler running elsewhere: in the k3s cluster of
-// deploy/k3s, reached through scripts/k3s/expose.sh.
+// ObserveTarget is a TenantScaler running elsewhere: the cluster of
+// deploy/kind. The dashboard normally runs as a pod in that cluster and
+// reaches these Services directly (deploy/k8s/50-dashboard.yaml); from your
+// own shell the same URLs are the node ports kind maps to localhost.
 type ObserveTarget struct {
 	// GatewayURL serves GET /stats, which needs AdminKey; ControllerURL
 	// serves GET /status and GET /decisions.
 	GatewayURL, ControllerURL string
 	// BaselineGatewayURL, when set, is the side-by-side baseline's gateway
-	// (deploy/k3s/side-by-side), shown in the baseline panel. Its /stats
+	// in front of its own pool, shown in the baseline panel. Its /stats
 	// (same AdminKey) gives the per-tenant statistics and the ready
 	// replicas; KEDA's target is not read, so that panel shows no
 	// starting replicas.
@@ -40,26 +42,28 @@ type ObserveTarget struct {
 
 // ObservedBackend describes an observed cluster for the dashboard's
 // labels: its replicas are the simulated engine of deploy/k8s, or with llama
-// the llama.cpp pods of deploy/k3s/llama. cfg (from configPath) only sizes
+// the llama.cpp pods of deploy/kind. cfg (from configPath) only sizes
 // the dashboard's axes.
 func ObservedBackend(cfg config.Config, configPath string, llama bool) BackendInfo {
 	b := BackendInfo{
 		Kind: "kubernetes", Simulated: true,
-		Label: "KUBERNETES (k3s): SIMULATED replicas",
-		Detail: "TenantScaler runs in the Kubernetes cluster: its controller scales the model-pool Deployment and its gateway " +
-			"serves the teammates' traffic. This dashboard only reads the cluster's gateways (/stats) and controller " +
-			"(/status, /decisions). The replicas are the SIMULATED engine, so latencies are simulated.",
+		Label: "KUBERNETES: SIMULATED replicas",
+		Detail: "TenantScaler runs in the Kubernetes cluster: its controller scales the model-pool Deployment and its " +
+			"gateway serves the three tenants' traffic. This dashboard only reads the cluster's gateways (/stats) and " +
+			"controller (/status, /decisions); it starts nothing itself. The replicas run the SIMULATED engine, so every " +
+			"latency here is simulated.",
 		Reason:   "observing a cluster (demo -observe-gateway)",
 		Replicas: cfg.Pool.CapacityReplicas, ConfigPath: configPath,
 	}
 	if llama {
 		b.Simulated = false
-		b.Label = "KUBERNETES (k3s): REAL llama.cpp replicas"
-		b.Detail = "TenantScaler runs in the Kubernetes cluster: its controller scales the model-pool Deployment of llama.cpp pods " +
-			"(official server image b11913, Qwen2.5-0.5B-Instruct Q4_K_M, 2 CPUs each) and its gateway serves the teammates' " +
-			"traffic. This dashboard only reads the cluster's gateways (/stats) and controller (/status, /decisions). " +
-			"Inference is real, but the pods run unpinned inside a WSL VM: latencies are not comparable with the pinned " +
-			"bare-metal results."
+		b.Label = "KUBERNETES: REAL llama.cpp replicas"
+		b.Detail = "TenantScaler runs in the Kubernetes cluster: its controller scales the model-pool Deployment of " +
+			"llama.cpp pods (official server image b11913, Qwen2.5-0.5B-Instruct Q4_K_M, 2 CPUs each) and its gateway " +
+			"serves the three tenants' traffic. This dashboard only reads the cluster's gateways (/stats) and controller " +
+			"(/status, /decisions); it starts nothing itself. Inference is REAL, but the pods are not CPU-pinned and run " +
+			"inside the cluster node's container, so these latencies are not comparable with the pinned bare-metal " +
+			"results in results/real/."
 	}
 	return b
 }

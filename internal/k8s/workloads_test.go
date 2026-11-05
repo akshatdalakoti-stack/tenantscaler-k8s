@@ -123,14 +123,27 @@ func TestPodsMeetRestrictedPodSecurity(t *testing.T) {
 func TestDeploymentsRunTheImageWithExpectedArgs(t *testing.T) {
 	ms := deployed(loadManifests(t))
 	wantArgs := map[string][]string{
-		"model-pool": {"replica", "-addr", ":8000"},
+		"model-pool": {"replica", "-addr", ":8000", "-config", "/etc/tenantscaler/config.yaml"},
 		"gateway": {"gateway", "-addr", ":8080", "-config", "/etc/tenantscaler/config.yaml", "-mode", "fair",
 			"-namespace", testNamespace, "-k8s-service", "model-pool", "-k8s-port", "8000"},
 		// -decisions-file "": the root filesystem is read-only.
-		"tenantscaler-controller": {"controller", "-addr", ":8090", "-k8s", "-namespace", testNamespace,
-			"-deployment", "model-pool", "-pool", "shared-llm-pool", "-capacity", "10",
-			"-gateway", "http://gateway:8080", "-decisions-file", ""},
+		"tenantscaler-controller": {"controller", "-addr", ":8090", "-config", "/etc/tenantscaler/config.yaml",
+			"-k8s", "-namespace", testNamespace, "-deployment", "model-pool", "-pool", "shared-llm-pool",
+			"-capacity", "4", "-gateway", "http://gateway:8080", "-decisions-file", ""},
+		// The dashboard only reads the other two: it starts no stack and
+		// writes nothing (-log-dir "" on a read-only root filesystem).
+		"dashboard": {"demo", "-addr", ":8080", "-config", "/etc/tenantscaler/config.yaml",
+			"-observe-gateway", "http://gateway:8080", "-observe-controller", "http://tenantscaler-controller:8090",
+			"-log-dir", ""},
+		// The three tenants: the `real` scenario's A, B and C traffic
+		// shapes, each keyed as its own tenant.
+		"tenant-a": {"loadgen", "-gateway", "http://gateway:8080", "-profile", "steady", "-report-every", "30s"},
+		"tenant-b": {"loadgen", "-gateway", "http://gateway:8080", "-profile", "periodic", "-report-every", "30s"},
+		"tenant-c": {"loadgen", "-gateway", "http://gateway:8080", "-profile", "spike", "-report-every", "30s",
+			"-spike-now", "-spike-duration", "40s", "-spike-every", "2m"},
 	}
+	// Who serves /metrics: the replicas, the gateway and the controller.
+	scraped := map[string]bool{"model-pool": true, "gateway": true, "tenantscaler-controller": true}
 	deployments := byKind(ms, "Deployment")
 	if len(deployments) != len(wantArgs) {
 		t.Errorf("got %d Deployments, want %d", len(deployments), len(wantArgs))
@@ -155,8 +168,18 @@ func TestDeploymentsRunTheImageWithExpectedArgs(t *testing.T) {
 		if got := containerArgs(t, d); !slices.Equal(got, wantArgs[d.GetName()]) {
 			t.Errorf("%v: args %q, want %q", m, got, wantArgs[d.GetName()])
 		}
-		// Every component serves /metrics on its http port.
+		// The three components of the two loops serve /metrics on their
+		// http port and say so. The dashboard and the tenant load
+		// generators do not serve metrics, so they must NOT be annotated:
+		// a Prometheus following these annotations would otherwise scrape
+		// a pod that has nothing to give it.
 		annotations, _, _ := unstructured.NestedStringMap(d.Object, "spec", "template", "metadata", "annotations")
+		if !scraped[d.GetName()] {
+			if annotations["prometheus.io/scrape"] != "" {
+				t.Errorf("%v: has scrape annotations %v but serves no /metrics", m, annotations)
+			}
+			continue
+		}
 		httpPort := strconv.FormatInt(containerPort(t, d, "http"), 10)
 		if annotations["prometheus.io/scrape"] != "true" || annotations["prometheus.io/port"] != httpPort ||
 			annotations["prometheus.io/path"] != "/metrics" {
@@ -225,7 +248,7 @@ func TestServicesMatchDeploymentsAndFlags(t *testing.T) {
 		}
 		servicePort[svc.GetName()] = p["port"].(int64)
 	}
-	want := map[string]int64{"model-pool": 8000, "gateway": 8080, "tenantscaler-controller": 8090}
+	want := map[string]int64{"model-pool": 8000, "gateway": 8080, "tenantscaler-controller": 8090, "dashboard": 8080}
 	if !maps.Equal(servicePort, want) {
 		t.Errorf("service ports = %v, want %v", servicePort, want)
 	}
@@ -249,7 +272,8 @@ func TestServicesMatchDeploymentsAndFlags(t *testing.T) {
 }
 
 // keysSecret is the Secret the gateway and the controller read their keys
-// from. It is created by hand (deploy/k3s/README.md) and never committed.
+// from. scripts/keys.ps1 writes it outside the repository, and nothing
+// commits it.
 const keysSecret = "tenantscaler-keys"
 
 func TestKeysComeFromTheSecret(t *testing.T) {

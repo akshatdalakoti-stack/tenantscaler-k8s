@@ -102,4 +102,4 @@ spec:
       volumes:
         - name: config
           configMap:
-            name: gateway-config
+            name: tenantscaler-config

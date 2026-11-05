@@ -1,14 +1,18 @@
-# Everything TenantScaler runs in one namespace. On a fresh cluster the CRD
-# must be established before the TenantScalers in 40-tenants.yaml can be
-# created, and the gateway and the controller need the Secret
-# tenantscaler-keys (never committed; scripts/k3s/keys.ps1 writes the env
-# file, with lower-case tenants a, b, c), so:
+# Everything TenantScaler runs in one namespace.
+#
+# ./scripts/up.ps1 does the whole sequence; this is what it comes down to.
+# The CRD must be Established before the TenantScalers of 40-tenants.yaml
+# can be created, and the gateway, controller, dashboard and tenant pods all
+# need the Secret tenantscaler-keys, which scripts/keys.ps1 writes outside
+# the repository and nothing commits:
 #   kubectl apply -f deploy/k8s/00-namespace.yaml -f deploy/k8s/01-crd.yaml
 #   kubectl wait --for=condition=Established crd/tenantscalers.scaling.tenantscaler.dev
 #   kubectl -n tenantscaler create secret generic tenantscaler-keys --from-env-file=<key env file>
 #   kubectl apply -f deploy/k8s/
-# (baselines/ is not applied by that command; see the files there.)
-# scripts/k3s/up.sh does all of it on k3s (deploy/k3s/README.md).
+#   kubectl apply -f deploy/kind/05-models.yaml -f deploy/kind/10-model-pool.yaml
+# The last line swaps the simulated replicas for real llama.cpp pods; leave
+# it out for a run that needs no model. baselines/ is not applied by any of
+# this; see the files there.
 # Pods here must meet the "restricted" Pod Security Standard; every
 # Deployment in this directory does (internal/k8s tests check the fields).
 apiVersion: v1

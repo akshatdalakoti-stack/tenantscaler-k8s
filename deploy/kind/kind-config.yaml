@@ -1,20 +1,43 @@
-# Alternative local cluster with Docker and kind (not run). The cluster that
-# was run is k3s in WSL2: deploy/k3s/README.md, evidence in results/k8s/.
-# kind's default node image is Kubernetes 1.30+, which
-# deploy/k8s/10-model-pool.yaml needs.
+# The cluster, on one PC.
+#
 #   kind create cluster --config deploy/kind/kind-config.yaml
-#   docker build -t tenantscaler:dev .
-#   kind load docker-image tenantscaler:dev --name tenantscaler
-#   kubectl apply -f deploy/k8s/00-namespace.yaml -f deploy/k8s/01-crd.yaml
-#   kubectl wait --for=condition=Established crd/tenantscalers.scaling.tenantscaler.dev
-#   kubectl -n tenantscaler create secret generic tenantscaler-keys --from-env-file=<key env file>
-#   kubectl apply -f deploy/k8s/
-#   kubectl -n tenantscaler port-forward svc/gateway 18080:8080
-#   kubectl -n tenantscaler port-forward svc/tenantscaler-controller 18090:8090
-#   kubectl -n tenantscaler get tenantscalers
-apiVersion: kind.x-k8s.io/v1alpha4
+#
+# scripts/up.ps1 (or scripts/up.sh) does this and everything after it.
+#
+# ONE node, not a control plane plus a worker. Everything here runs on one
+# machine, the model file is copied onto one node, and a second node would
+# only add another kubelet and another etcd peer to feed. kind leaves the
+# control-plane node schedulable, so the pods land on it.
+#
+# The node image is whichever one the installed kind release defaults to.
+# The manifests need Kubernetes 1.30 or newer for the `preStop: sleep`
+# handler that makes scale-down graceful; every kind release since v0.23
+# defaults to something newer than that.
+#
+# extraPortMappings, bound to 127.0.0.1 so nothing is offered to the
+# network, map the three node ports to the ports you actually use:
+#
+#   8080   dashboard   (deploy/k8s/50-dashboard.yaml)   <- the one to open
+#   8081   gateway     (deploy/k8s/20-gateway.yaml)     keyed, for your own loadgen
+#   18090  controller  (deploy/k8s/30-controller.yaml)  /decisions, /status
+#
+# The host's own 8080 must be free: a `tenantscaler demo` running outside
+# the cluster uses the same port, so stop it first.
 kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
 name: tenantscaler
 nodes:
   - role: control-plane
-  - role: worker
+    extraPortMappings:
+      - containerPort: 30080
+        hostPort: 8080
+        listenAddress: "127.0.0.1"
+        protocol: TCP
+      - containerPort: 30081
+        hostPort: 8081
+        listenAddress: "127.0.0.1"
+        protocol: TCP
+      - containerPort: 30090
+        hostPort: 18090
+        listenAddress: "127.0.0.1"
+        protocol: TCP

@@ -1,9 +1,21 @@
-# The worked example: three tenants share a 10-replica pool with guarantees
-# 3/3/3 (9 <= 10, so the promise is keepable) and may borrow up to 8 each.
-# Each tenant's name is its fairness id: requests carry
+# The worked example, sized for ONE PC: three tenants share a budget of 4
+# replicas, each guaranteed 1 (3 <= 4, so the promise is keepable) and
+# allowed to borrow up to 3.
+#
+# A tenant's name is its fairness id. Requests carry it as
 #   x-llm-d-inference-fairness-id: a | b | c
-# The gateway's tenant list (ConfigMap gateway-config in 20-gateway.yaml)
-# must list the same tenants with the same specs; change both together.
+# though in practice the gateway derives it from the request's API key, so a
+# tenant cannot claim to be another one by setting the header.
+#
+# c is the noisy neighbour: same guarantee, same cap, but priority 50
+# against a and b's 100. Priority orders only who borrows a spare replica
+# first, so when c's spike arrives a and b take the spare before it does and
+# c runs into its cap of 3. The arbiter then marks c shedding, the gateway
+# answers c's sheddable requests with 429 and a Retry-After, and a's and b's
+# guaranteed replica is never lent out from under them.
+#
+# 15-config.yaml must list exactly these tenants with exactly these specs;
+# internal/k8s tests compare the two. Change them together.
 apiVersion: scaling.tenantscaler.dev/v1alpha1
 kind: TenantScaler
 metadata:
@@ -11,12 +23,12 @@ metadata:
   namespace: tenantscaler
 spec:
   pool: shared-llm-pool
-  guaranteedReplicas: 3
-  maxReplicas: 8
+  guaranteedReplicas: 1
+  maxReplicas: 3
   priority: 100
   slo:
     ttftSeconds: 2
-    tpotMillis: 100
+    tpotMillis: 200
     targetFraction: 0.99
 ---
 apiVersion: scaling.tenantscaler.dev/v1alpha1
@@ -26,12 +38,12 @@ metadata:
   namespace: tenantscaler
 spec:
   pool: shared-llm-pool
-  guaranteedReplicas: 3
-  maxReplicas: 8
+  guaranteedReplicas: 1
+  maxReplicas: 3
   priority: 100
   slo:
     ttftSeconds: 2
-    tpotMillis: 100
+    tpotMillis: 200
     targetFraction: 0.99
 ---
 apiVersion: scaling.tenantscaler.dev/v1alpha1
@@ -41,10 +53,10 @@ metadata:
   namespace: tenantscaler
 spec:
   pool: shared-llm-pool
-  guaranteedReplicas: 3
-  maxReplicas: 8
-  priority: 100
+  guaranteedReplicas: 1
+  maxReplicas: 3
+  priority: 50
   slo:
     ttftSeconds: 2
-    tpotMillis: 100
+    tpotMillis: 200
     targetFraction: 0.99

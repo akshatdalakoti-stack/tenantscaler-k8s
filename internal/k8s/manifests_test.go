@@ -124,12 +124,11 @@ func deployed(ms []manifest) []manifest { return inSet(ms, "k8s") }
 // overlays are objects another apply set deliberately re-applies with a
 // change, keyed by identity, with every set that may hold a copy (the
 // original's first). TestPassthroughGatewayOverlay checks the gateway's
-// change; k3s/llama swaps the simulated pools for llama.cpp ones under the
-// same names.
+// change; deploy/kind swaps the simulated pool for llama.cpp pods under the
+// same name and labels.
 var overlays = map[string][]string{
-	"apps/v1/Deployment/tenantscaler/gateway":             {"k8s", "k8s/baselines"},
-	"apps/v1/Deployment/tenantscaler/model-pool":          {"k8s", "k3s/llama"},
-	"apps/v1/Deployment/tenantscaler/model-pool-baseline": {"k3s/side-by-side", "k3s/llama"},
+	"apps/v1/Deployment/tenantscaler/gateway":    {"k8s", "k8s/baselines"},
+	"apps/v1/Deployment/tenantscaler/model-pool": {"k8s", "kind"},
 }
 
 func byKind(ms []manifest, kind string) []manifest {
@@ -210,16 +209,24 @@ func TestManifestsParseAndAreComplete(t *testing.T) {
 		{"k8s", "RoleBinding", "gateway"},
 		{"k8s", "Deployment", "model-pool"},
 		{"k8s", "Service", "model-pool"},
-		{"k8s", "ConfigMap", "gateway-config"},
+		{"k8s", "ConfigMap", "tenantscaler-config"},
 		{"k8s", "Deployment", "gateway"},
 		{"k8s", "Service", "gateway"},
 		{"k8s", "Deployment", "tenantscaler-controller"},
 		{"k8s", "Service", "tenantscaler-controller"},
+		{"k8s", "Deployment", "dashboard"},
+		{"k8s", "Service", "dashboard"},
+		{"k8s", "Deployment", "tenant-a"},
+		{"k8s", "Deployment", "tenant-b"},
+		{"k8s", "Deployment", "tenant-c"},
 		{"k8s", Kind, "a"}, {"k8s", Kind, "b"}, {"k8s", Kind, "c"},
 		{"k8s/baselines", "ScaledObject", "model-pool-queue"},
 		{"k8s/baselines", "HorizontalPodAutoscaler", "model-pool-cpu"},
 		{"k8s/baselines", "Deployment", "gateway"},
 		{"kind", "Cluster", ""},
+		{"kind", "PersistentVolume", "tenantscaler-llama-models"},
+		{"kind", "PersistentVolumeClaim", "llama-models"},
+		{"kind", "Deployment", "model-pool"},
 	}
 	for _, w := range want {
 		if w.name == "" {

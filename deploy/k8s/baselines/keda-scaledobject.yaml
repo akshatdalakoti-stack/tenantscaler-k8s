@@ -28,7 +28,7 @@ spec:
   scaleTargetRef:
     name: model-pool
   minReplicaCount: 1
-  maxReplicaCount: 10
+  maxReplicaCount: 4
   pollingInterval: 15
   advanced:
     horizontalPodAutoscalerConfig:

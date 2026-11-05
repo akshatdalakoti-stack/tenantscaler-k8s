@@ -1,22 +1,30 @@
-# The TenantScaler controller: each cycle it reads the TenantScalers of pool
-# shared-llm-pool, the gateway's per-tenant stats and the model-pool
-# Deployment, then scales the Deployment, pushes the policy to the gateway
-# and writes each tenant's status. Exactly one replica (single writer; there
-# is no leader election), recreated rather than rolled.
-# It serves /decisions, /status, /healthz and /metrics on :8090 (Service
-# tenantscaler-controller). /healthz answers as soon as the process listens,
-# also while it waits (retrying every cycle) for its first TenantScalers; the
-# other endpoints answer 503 until then. A cycle whose gateway stats or
-# Deployment status cannot be read fails static: nothing is scaled (see the
-# errors in /status and tenantscaler_controller_failstatic_total).
-# After a restart (Recreate) it continues the policy versions the gateway
-# (GET /policy) and the TenantScaler statuses already hold, so the gateway
-# applies its policies instead of ignoring them as older.
-# The root filesystem is read-only, so the decision
-# log is not written to a file (-decisions-file ""): read it from /decisions,
-# and each tenant's latest outcome from its TenantScaler status.
-# It calls the gateway's admin endpoints (/stats, /policy) with $TS_ADMIN_KEY
-# from the Secret tenantscaler-keys, the same key the gateway checks.
+# The TenantScaler controller: the slow loop, one cycle every 10 s. It reads
+# the TenantScalers of pool shared-llm-pool, the gateway's per-tenant stats
+# and the model-pool Deployment; then it arbitrates the budget, scales the
+# Deployment through deployments/scale, pushes a versioned policy to the
+# gateway and writes each tenant's outcome into its TenantScaler status.
+#
+# Exactly one replica (single writer, no leader election), recreated rather
+# than rolled. It serves /decisions, /status, /healthz and /metrics on 8090.
+# /healthz answers as soon as the process listens, including while it waits
+# (retrying every cycle) for its first TenantScalers; the others answer 503
+# until then. A cycle whose gateway stats or Deployment status cannot be
+# read FAILS STATIC: nothing is scaled, the error shows in /status and
+# tenantscaler_controller_failstatic_total counts it. After a restart it
+# continues the policy versions the gateway (GET /policy) and the
+# TenantScaler statuses already hold, so the gateway applies its policies
+# instead of discarding them as older than what it has.
+#
+# -config is 15-config.yaml, the same file the gateway and the simulated
+# replicas mount, so the dispatch window, the cycle, the per-replica
+# capacity and the tenant set cannot drift apart between the two loops.
+# -pool and -capacity restate what that file already says, because the
+# KEDA and HPA baselines in k8s/baselines are sized from them and read them
+# here; internal/k8s tests fail if the two disagree.
+#
+# The root filesystem is read-only, so there is no decision log file
+# (-decisions-file ""): read the log from /decisions and each tenant's
+# latest outcome from its TenantScaler status.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -57,6 +65,8 @@ spec:
             - controller
             - -addr
             - :8090
+            - -config
+            - /etc/tenantscaler/config.yaml
             - -k8s
             - -namespace
             - tenantscaler
@@ -65,7 +75,7 @@ spec:
             - -pool
             - shared-llm-pool
             - -capacity
-            - "10"
+            - "4"
             - -gateway
             - http://gateway:8080
             - -decisions-file
@@ -79,6 +89,10 @@ spec:
           ports:
             - name: http
               containerPort: 8090
+          volumeMounts:
+            - name: config
+              mountPath: /etc/tenantscaler
+              readOnly: true
           readinessProbe:
             httpGet:
               path: /healthz
@@ -100,7 +114,17 @@ spec:
             readOnlyRootFilesystem: true
             capabilities:
               drop: ["ALL"]
+      volumes:
+        - name: config
+          configMap:
+            name: tenantscaler-config
 ---
+# NodePort 30090 -> 127.0.0.1:18090 on the host (deploy/kind/kind-config.yaml),
+# so you can read the controller's reasoning straight from your own shell:
+#   curl -s 127.0.0.1:18090/decisions | python -m json.tool
+# These endpoints are read-only and unauthenticated (the admin key is only
+# something the controller SENDS to the gateway), so they stay on a
+# node port bound to 127.0.0.1 and nothing else.
 apiVersion: v1
 kind: Service
 metadata:
@@ -110,9 +134,11 @@ metadata:
     app.kubernetes.io/name: tenantscaler-controller
     app.kubernetes.io/part-of: tenantscaler
 spec:
+  type: NodePort
   selector:
     app.kubernetes.io/name: tenantscaler-controller
   ports:
     - name: http
       port: 8090
       targetPort: http
+      nodePort: 30090

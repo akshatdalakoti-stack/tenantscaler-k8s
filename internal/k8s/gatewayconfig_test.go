@@ -5,7 +5,6 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"reflect"
 	"slices"
 	"strconv"
 	"testing"
@@ -96,22 +95,33 @@ func TestGatewayConfigMatchesTenantScalers(t *testing.T) {
 		t.Errorf("gateway tenants %+v, want the TenantScalers %+v", got, want)
 	}
 
-	ctl := flagValues(containerArgs(t, find(t, ms, "Deployment", "tenantscaler-controller")))
+	ctlDeploy := find(t, ms, "Deployment", "tenantscaler-controller")
+	ctl := flagValues(containerArgs(t, ctlDeploy))
 	if cfg.Pool.Name != ctl["-pool"] || strconv.Itoa(cfg.Pool.CapacityReplicas) != ctl["-capacity"] {
 		t.Errorf("gateway pool %q capacity %d, controller -pool %q -capacity %q",
 			cfg.Pool.Name, cfg.Pool.CapacityReplicas, ctl["-pool"], ctl["-capacity"])
 	}
-	// The controller has no -config, so it runs on the built-in defaults
-	// with tenants from the TenantScalers. Everything else in the gateway's
-	// config must match those defaults; in particular a different
-	// slotsPerReplica would make the controller's critical slots disagree
-	// with the gateway's dispatch window.
-	if _, set := ctl["-config"]; set {
-		t.Fatal("controller takes -config now: compare the gateway's config with that file instead of the defaults")
+	// The controller reads the SAME file as the gateway, so the two loops
+	// cannot drift apart: a slotsPerReplica the gateway honoured but the
+	// controller did not know about would make the controller's critical
+	// slot reservation disagree with the gateway's dispatch window. The
+	// simulated replicas and the dashboard mount it too.
+	if ctl["-config"] == "" {
+		t.Fatal("controller has no -config: it would run on the built-in defaults while the gateway runs on the ConfigMap")
 	}
-	want := config.Default()
-	want.Tenants = cfg.Tenants
-	if !reflect.DeepEqual(cfg, want) {
-		t.Errorf("gateway config differs from the built-in defaults outside tenants:\n got %+v\nwant %+v", cfg, want)
+	for _, name := range []string{"tenantscaler-controller", "model-pool", "dashboard"} {
+		d := find(t, ms, "Deployment", name)
+		file := flagValues(containerArgs(t, d))["-config"]
+		if file == "" {
+			t.Errorf("deployment %s has no -config", name)
+			continue
+		}
+		cm, k, ro := mountedConfigMapKey(t, d, file)
+		if cm != cmName || k != key {
+			t.Errorf("deployment %s reads %s/%s, want the gateway's %s/%s", name, cm, k, cmName, key)
+		}
+		if !ro {
+			t.Errorf("deployment %s config volume must be mounted read-only", name)
+		}
 	}
 }

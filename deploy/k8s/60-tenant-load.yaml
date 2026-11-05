@@ -1,0 +1,178 @@
+# The three tenants, as pods.
+#
+# This is what the hackathon demo needed three teammates' laptops, a phone
+# hotspot and a Hyper-V firewall rule for. The traffic shapes are the same
+# ones the evaluation uses (the `real` scenario's A, B and C patterns), so
+# the noisy-neighbour story runs on one PC with nobody typing:
+#
+#   a  steady    a flat rate, the tenant that must not be disturbed
+#   b  periodic  a rising and falling rate
+#   c  spike     flat, then 40 s at its peak rate every 2 minutes
+#
+# c's repeating spike is the point: each time it arrives you can watch the
+# controller lend it the spare replica, hit its cap of 3, mark it shedding
+# and hand its sheddable requests a 429 with a Retry-After, while a and b
+# keep their guarantee. Then it subsides and the grant is reclaimed. The
+# gateway derives the tenant from the API key, so a tenant cannot claim to
+# be another by setting the fairness header.
+#
+# Each pod talks to the gateway's ClusterIP. Nothing here is exposed, and
+# none of them needs the Kubernetes API.
+#
+# To drive a tenant by hand instead, scale its Deployment to 0 and run the
+# same command from your own shell against the gateway's node port:
+#   kubectl -n tenantscaler scale deployment/tenant-c --replicas=0
+#   tenantscaler loadgen -gateway http://127.0.0.1:8081 -key <c's key> -profile spike -spike-now
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tenant-a
+  namespace: tenantscaler
+  labels:
+    app.kubernetes.io/name: tenant-a
+    app.kubernetes.io/component: tenant-load
+    app.kubernetes.io/part-of: tenantscaler
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: tenant-a
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: tenant-a
+        app.kubernetes.io/component: tenant-load
+        app.kubernetes.io/part-of: tenantscaler
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: loadgen
+          image: tenantscaler:dev
+          imagePullPolicy: IfNotPresent
+          args: ["loadgen", "-gateway", "http://gateway:8080", "-profile", "steady", "-report-every", "30s"]
+          env:
+            - name: TS_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: tenantscaler-keys
+                  key: TS_KEY_A
+          resources:
+            requests:
+              cpu: 100m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tenant-b
+  namespace: tenantscaler
+  labels:
+    app.kubernetes.io/name: tenant-b
+    app.kubernetes.io/component: tenant-load
+    app.kubernetes.io/part-of: tenantscaler
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: tenant-b
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: tenant-b
+        app.kubernetes.io/component: tenant-load
+        app.kubernetes.io/part-of: tenantscaler
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: loadgen
+          image: tenantscaler:dev
+          imagePullPolicy: IfNotPresent
+          args: ["loadgen", "-gateway", "http://gateway:8080", "-profile", "periodic", "-report-every", "30s"]
+          env:
+            - name: TS_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: tenantscaler-keys
+                  key: TS_KEY_B
+          resources:
+            requests:
+              cpu: 100m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tenant-c
+  namespace: tenantscaler
+  labels:
+    app.kubernetes.io/name: tenant-c
+    app.kubernetes.io/component: tenant-load
+    app.kubernetes.io/part-of: tenantscaler
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: tenant-c
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: tenant-c
+        app.kubernetes.io/component: tenant-load
+        app.kubernetes.io/part-of: tenantscaler
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: loadgen
+          image: tenantscaler:dev
+          imagePullPolicy: IfNotPresent
+          args: ["loadgen", "-gateway", "http://gateway:8080", "-profile", "spike", "-report-every", "30s",
+                 "-spike-now", "-spike-duration", "40s", "-spike-every", "2m"]
+          env:
+            - name: TS_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: tenantscaler-keys
+                  key: TS_KEY_C
+          resources:
+            requests:
+              cpu: 100m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]

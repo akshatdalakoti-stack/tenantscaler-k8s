@@ -1,15 +1,32 @@
-# REAL llama.cpp replicas: TenantScaler's pool, the same Deployment name and
-# labels as deploy/k8s/10-model-pool.yaml (so its Service, the gateway's
-# EndpointSlice discovery and the controller's deployments/scale are
-# unchanged), now running llama-server (official image, build b11913, pinned
-# by digest; the laptop runs measured b11898, which has no published image).
-# Each pod: 2 CPUs requested and limited (Guaranteed QoS; 2 x 2 + 2 x 2 for
-# the baseline = the 8-thread cap), -t 2, 4 slots of 1024 tokens, prompt
-# cache off (--cache-ram 0, as the laptop launcher). Recreate: never mix
-# simulated and llama pods behind one Service. spec.replicas is omitted: the
-# controller owns it. /health answers 503 while the model loads, so the
-# startup probe waits for it; preStop keeps the pod serving while discovery
-# drops it.
+# REAL llama.cpp replicas: the pool TenantScaler actually scales.
+#
+# Same Deployment name and labels as deploy/k8s/10-model-pool.yaml, so the
+# Service, the gateway's EndpointSlice discovery and the controller's
+# deployments/scale all keep working untouched; this file only swaps the
+# simulated engine for real inference. Apply it after deploy/k8s/.
+#
+# Image: the official llama.cpp server image, build b11913, pinned by
+# digest. The bare-metal measurements in results/real/ used b11898, which
+# has no published image; the two builds are days apart.
+#
+# Each pod: 2 CPUs requested AND limited, so the pod is Guaranteed QoS and
+# cannot be throttled by its neighbours; -t 2 matches the limit, 4 slots of
+# 1024 tokens (-c 4096 -np 4) match engine.maxNumSeqs in 15-config.yaml, and
+# --cache-ram 0 turns off the prompt cache so a repeated prompt is not
+# served from an earlier request's work. A budget of 4 is 8 of this
+# laptop's 12 CPUs, leaving the gateway, controller, dashboard and the three
+# tenant pods the rest.
+#
+# spec.replicas is deliberately absent: the controller owns the replica
+# count through deployments/scale, so re-applying this file must not reset
+# it. Recreate, never a rolling update: simulated and llama pods must never
+# sit behind the one Service together.
+#
+# /health answers 503 while the model loads, so the startup probe waits for
+# it (up to 120 s) and the readiness probe only then takes over. The
+# controller counts a not-ready pod as "starting", which is exactly the cold
+# start its stabiliser is there to absorb. preStop keeps the pod serving for
+# 20 s while discovery drops it, then SIGTERM drains the rest.
 apiVersion: apps/v1
 kind: Deployment
 metadata:

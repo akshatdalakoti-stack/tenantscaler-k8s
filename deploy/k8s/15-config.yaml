@@ -1,0 +1,88 @@
+# The one configuration every component reads: the gateway, the controller
+# and the simulated replicas all mount this ConfigMap at
+# /etc/tenantscaler/config.yaml.
+#
+# It used to be the gateway's alone (ConfigMap gateway-config), with the
+# controller left on the built-in defaults and a test pinning the two
+# together. One file for all three removes that whole class of bug: a
+# slotsPerReplica the gateway honoured but the controller did not know
+# about would make the controller's critical slot reservation disagree with
+# the gateway's dispatch window.
+#
+# Sizing is for ONE PC (deploy/kind): a budget of 4 replicas, each a
+# llama.cpp pod with 2 CPUs (8 of this laptop's 12), and tenants a, b, c
+# guaranteed 1 each with a cap of 3. The tenants must stay identical to the
+# TenantScalers in 40-tenants.yaml; internal/k8s tests enforce it, and the
+# names are lower case because a TenantScaler's name is its fairness id and
+# Kubernetes names are lower case.
+#
+# c is the noisy neighbour at priority 50. Priority only orders who borrows
+# a spare replica first (internal/arbiter lendingOrder), so a and b take the
+# spare before c does, and c's spike runs into its own cap: SHEDDING turns
+# true for c and its sheddable requests get 429 with reason over-share,
+# while a and b keep their guarantee.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tenantscaler-config
+  namespace: tenantscaler
+  labels:
+    app.kubernetes.io/part-of: tenantscaler
+data:
+  config.yaml: |
+    pool:
+      name: shared-llm-pool
+      capacityReplicas: 4
+      minReplicas: 1
+    tenants:
+      - name: a
+        guaranteedReplicas: 1
+        maxReplicas: 3
+        priority: 100
+        slo: {ttftSeconds: 2, tpotMillis: 200, targetFraction: 0.99}
+      - name: b
+        guaranteedReplicas: 1
+        maxReplicas: 3
+        priority: 100
+        slo: {ttftSeconds: 2, tpotMillis: 200, targetFraction: 0.99}
+      - name: c
+        guaranteedReplicas: 1
+        maxReplicas: 3
+        priority: 50
+        slo: {ttftSeconds: 2, tpotMillis: 200, targetFraction: 0.99}
+    controller:
+      cycleSeconds: 10
+      headroom: 0.2
+      # Weighted tokens/s (input + 2 x output) one replica serves while the
+      # whole budget is busy. 117 was measured on bare metal with one
+      # llama-server per physical P-core (results/real/scaling.md). A pod in
+      # the kind node container is not pinned and shares the host with
+      # Docker's VM, so treat it as a starting value and re-measure with
+      # `tenantscaler profile -config config/real.yaml` on the machine you
+      # are on. The controller only uses it to turn a token rate into a
+      # replica count, so being high makes it grant too few replicas.
+      replicaCapacityTokensPerSec: 117
+      scaleDownWindowSeconds: 60
+      maxStepPerCycle: 2
+      retryAfterSeconds: 2
+      forecast: {enabled: false, bucketSeconds: 10, seasonBuckets: 6, alpha: 0.5, beta: 0.1, gamma: 0.3}
+    # Read by the simulated replicas of 10-model-pool.yaml, and by nothing
+    # else once deploy/kind swaps in real llama.cpp pods. Calibrated against
+    # the real replica (results/real/profile.md): within 25% at concurrency
+    # 1-5, which covers the dispatch window of 4.
+    engine:
+      prefillOverhead: 14.587ms
+      prefillPerToken: 7.911ms
+      interTokenLatency: 20.966ms
+      maxNumSeqs: 4
+      timeFactorUnderLoad: 4.65
+      prefillFactorUnderLoad: 1.2
+      startupDuration: 605ms
+      jitterFraction: 0.05
+    gateway:
+      # llama-server runs 4 slots per pod, but one replica measured p99 TTFT
+      # 1.318 s at concurrency 2 against 1.816 s at 4
+      # (results/real/profile.md), so a request shares its pod with at most
+      # one other. The rest wait in the gateway's fair queue, which is
+      # where a tenant's guarantee and priority actually apply.
+      slotsPerReplica: 2

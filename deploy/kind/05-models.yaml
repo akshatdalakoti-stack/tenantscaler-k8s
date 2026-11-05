@@ -1,9 +1,17 @@
-# REAL llama.cpp replicas in the cluster (deploy/k3s/README.md): the model.
+# REAL llama.cpp replicas: where the model file comes from.
+#
 # The namespace enforces the restricted Pod Security Standard, which forbids
-# hostPath volumes in pods, so the pods mount this claim, read-only. The
-# volume behind it is a node directory that scripts/k3s/llama-up.sh fills
-# with the pinned GGUF (SHA-256 checked, as scripts/setup-llama.ps1 pins it).
-# One node only: the path is on that node.
+# hostPath volumes in pods, so the pods mount this claim read-only instead.
+# Behind it is a directory on the node, which scripts/up.ps1 fills by
+# copying the pinned GGUF into the node container and checking its SHA-256
+# (the same hash scripts/setup-llama.ps1 pins).
+#
+# One node, so the path is on that node and the claim is ReadOnlyMany: all
+# four replicas mount the same file at once.
+#
+# storageClassName: "" on both sides, and volumeName/claimRef naming each
+# other, so this pair binds to each other and never to a volume the default
+# local-path provisioner would make.
 apiVersion: v1
 kind: PersistentVolume
 metadata:

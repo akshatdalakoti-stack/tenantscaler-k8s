@@ -1,61 +1,27 @@
-# The tenant-fair gateway. It discovers ready model-pool replicas from the
-# Service's EndpointSlices and dispatches to pods directly, enforcing the
-# controller's per-tenant policy. One replica: fairness state (virtual token
-# counters, queues) lives in memory.
+# The tenant-fair gateway: the fast loop. It discovers ready model-pool
+# replicas from the Service's EndpointSlices and dispatches to pods
+# directly, enforcing the controller's per-tenant policy on every request.
 #
-# The gateway answers 400 to a tenant it does not know. With -k8s-service it
-# reads its tenants from the TenantScalers of its pool (tenant = resource
-# name; re-read every 30 s) when its Role may list them, and otherwise falls
-# back to the config file below; it logs which source it uses. The file
-# therefore lists the same tenants as 40-tenants.yaml (lower-case names,
-# because a TenantScaler's name is its fairness id and Kubernetes names are
-# lower case) with the same guarantees, caps, priorities and SLOs;
-# internal/k8s tests enforce it. Its pool name selects the TenantScalers.
-# Every other setting stays at the built-in default, which is what the
-# controller runs with (it has no -config), so both agree on the dispatch
-# window per replica. After editing the file's tenants:
+# One replica, and Recreate rather than a rolling update: the fairness state
+# (per-tenant virtual token counters and queues) lives in memory, so two
+# gateways behind one Service would split it, and the controller's /stats
+# and /policy would hit one or the other at random.
+#
+# Tenants: with -k8s-service it reads them from the TenantScalers of its
+# pool (tenant = resource name; re-read every 30 s) when its Role may list
+# them, and otherwise falls back to the mounted config file. It answers 400
+# to a tenant it does not know. Either way the file and the TenantScalers
+# must agree, so both read 15-config.yaml, which the controller and the
+# simulated replicas mount too. After editing it:
 #   kubectl -n tenantscaler rollout restart deployment gateway
 #
-# Keys: the gateway reads $TS_TENANT_KEYS (which key is which tenant, with
-# lower-case tenant names as above) and $TS_ADMIN_KEY (POST/GET /policy,
-# /stats, /metrics) from the Secret tenantscaler-keys, which is created by
-# hand and never committed (deploy/k3s/README.md). Keys are read at start:
-# after changing the Secret, restart the gateway and the controller. With
-# the admin key set, /metrics needs "Authorization: Bearer <admin key>" too,
-# so a Prometheus that scrapes through the annotations below must send it.
-# Recreate, not a rolling update: two gateways behind one Service would
-# split the fairness state and the controller's /stats and /policy.
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: gateway-config
-  namespace: tenantscaler
-  labels:
-    app.kubernetes.io/name: gateway
-    app.kubernetes.io/part-of: tenantscaler
-data:
-  config.yaml: |
-    pool:
-      name: shared-llm-pool
-      capacityReplicas: 10
-      minReplicas: 1
-    tenants:
-      - name: a
-        guaranteedReplicas: 3
-        maxReplicas: 8
-        priority: 100
-        slo: {ttftSeconds: 2, tpotMillis: 100, targetFraction: 0.99}
-      - name: b
-        guaranteedReplicas: 3
-        maxReplicas: 8
-        priority: 100
-        slo: {ttftSeconds: 2, tpotMillis: 100, targetFraction: 0.99}
-      - name: c
-        guaranteedReplicas: 3
-        maxReplicas: 8
-        priority: 100
-        slo: {ttftSeconds: 2, tpotMillis: 100, targetFraction: 0.99}
----
+# Keys: $TS_TENANT_KEYS (which key is which tenant) and $TS_ADMIN_KEY
+# (POST/GET /policy, /stats, /metrics) come from the Secret
+# tenantscaler-keys, which scripts/keys.ps1 or scripts/keys.sh generates
+# outside the repository and nothing commits. Keys are read at start, so
+# restart the gateway and the controller after changing the Secret. With an
+# admin key set, /metrics needs the bearer token too, so a Prometheus
+# scraping through the annotations below must send it.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -148,8 +114,13 @@ spec:
       volumes:
         - name: config
           configMap:
-            name: gateway-config
+            name: tenantscaler-config
 ---
+# NodePort 30081, which deploy/kind/kind-config.yaml maps to 127.0.0.1:8081
+# on the host, so you can drive the cluster's gateway from your own shell:
+#   tenantscaler loadgen -gateway http://127.0.0.1:8081 -key <key> -profile spike
+# The in-cluster tenants of 60-tenant-load.yaml use the ClusterIP instead.
+# Every request needs a tenant key, so the port is keyed, not open.
 apiVersion: v1
 kind: Service
 metadata:
@@ -159,9 +130,11 @@ metadata:
     app.kubernetes.io/name: gateway
     app.kubernetes.io/part-of: tenantscaler
 spec:
+  type: NodePort
   selector:
     app.kubernetes.io/name: gateway
   ports:
     - name: http
       port: 8080
       targetPort: http
+      nodePort: 30081

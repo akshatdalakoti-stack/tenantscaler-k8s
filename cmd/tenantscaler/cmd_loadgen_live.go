@@ -43,6 +43,8 @@ func runLoadgenLive(args []string) error {
 	profile := fs.String("profile", "steady", "traffic shape: steady | periodic | spike (the real scenario's A, B, C patterns)")
 	spikeNow := fs.Bool("spike-now", false, "spike profile: start the spike immediately")
 	spikeFor := fs.Duration("spike-duration", 40*time.Second, "spike profile: how long a spike lasts")
+	spikeEvery := fs.Duration("spike-every", 0, "spike profile: start another spike this often, so the noisy neighbour "+
+		"comes and goes without anyone typing (0 = spike only once, when -spike-now asks for it)")
 	duration := fs.Duration("duration", 0, "stop after this long (0 = until Ctrl+C)")
 	every := fs.Duration("report-every", 10*time.Second, "print a summary line this often")
 	seed := fs.Int64("seed", time.Now().UnixNano(), "seed of the arrivals and prompts (default: time-based)")
@@ -65,6 +67,11 @@ func runLoadgenLive(args []string) error {
 		return fmt.Errorf("-profile must be steady, periodic or spike, got %q", *profile)
 	case *spikeNow && kind != workload.KindSpike:
 		return errors.New("-spike-now needs -profile spike")
+	case *spikeEvery > 0 && kind != workload.KindSpike:
+		return errors.New("-spike-every needs -profile spike")
+	case *spikeEvery > 0 && *spikeEvery <= *spikeFor:
+		return fmt.Errorf("-spike-every (%s) must be longer than -spike-duration (%s), or the spike never ends",
+			*spikeEvery, *spikeFor)
 	}
 	sc, err := liveScenario(kind)
 	if err != nil {
@@ -95,6 +102,16 @@ func runLoadgenLive(args []string) error {
 	}
 	tick := time.NewTicker(*every)
 	defer tick.Stop()
+	// A repeating spike needs a ticker that outlives the first one. With
+	// -spike-every 0 this channel stays nil, and a nil channel in a select
+	// simply never fires.
+	var spikes <-chan time.Time
+	if *spikeEvery > 0 {
+		st := time.NewTicker(*spikeEvery)
+		defer st.Stop()
+		spikes = st.C
+		fmt.Printf("spiking for %s every %s\n", *spikeFor, *spikeEvery)
+	}
 	start := time.Now()
 	for {
 		select {
@@ -105,6 +122,9 @@ func runLoadgenLive(args []string) error {
 			return nil
 		case <-tick.C:
 			fmt.Println(win.line(time.Since(start), false))
+		case <-spikes:
+			gen.Spike(*spikeFor)
+			fmt.Printf("spike started for %s\n", *spikeFor)
 		}
 	}
 }

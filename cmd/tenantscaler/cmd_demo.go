@@ -42,14 +42,19 @@ func runDemo(args []string) error {
 		"both panels show the same live traffic; needs -backend simulated (two real stacks would share the P-cores and exceed the "+
 		"8-thread budget)")
 	observeGW := fs.String("observe-gateway", "", "watch a TenantScaler running in Kubernetes instead of starting one: its gateway's "+
-		"base URL, e.g. http://127.0.0.1:8081 (scripts/k3s/expose.sh); needs -observe-controller and -observe-keys")
+		"base URL. In the cluster the dashboard pod uses the Service name, http://gateway:8080; from your own shell "+
+		"it is the node port, http://127.0.0.1:8081. Needs -observe-controller.")
 	observeCtl := fs.String("observe-controller", "", "with -observe-gateway: the controller's base URL, e.g. http://127.0.0.1:18090")
 	observeBase := fs.String("observe-baseline-gateway", "", "with -observe-gateway: the side-by-side baseline gateway's base URL "+
-		"(deploy/k3s/side-by-side), e.g. http://127.0.0.1:18082, shown in the baseline panel")
-	observeReplicas := fs.String("observe-replicas", "simulated", "with -observe-gateway: what the cluster's replicas run, for the "+
-		"dashboard's labels: simulated (deploy/k8s) | llama (deploy/k3s/llama)")
-	observeKeys := fs.String("observe-keys", "", "with -observe-gateway: the env file holding the cluster's TS_ADMIN_KEY "+
-		"(scripts/k3s/keys.ps1 writes it); the key is not printed")
+		"of a second, passthrough gateway in front of its own pool, e.g. http://127.0.0.1:18082, shown in the "+
+		"baseline panel")
+	observeReplicas := fs.String("observe-replicas", envfile.Get("TS_OBSERVE_REPLICAS", "simulated"),
+		"with -observe-gateway: what the cluster's replicas run, for the "+
+			"dashboard's labels: simulated (deploy/k8s) | llama (deploy/kind); default $TS_OBSERVE_REPLICAS, which the "+
+			"dashboard pod gets from its Deployment")
+	observeKeys := fs.String("observe-keys", "", "with -observe-gateway: an env file holding the cluster's TS_ADMIN_KEY "+
+		"(default: $TS_ADMIN_KEY, which is how the in-cluster dashboard reads it from the Secret) "+
+		"(scripts/keys.ps1 writes it); the key is not printed")
 	burstGPT := fs.String("trace-burstgpt", ".cache/traces/BurstGPT_1.csv", "BurstGPT trace CSV for the dashboard's BurstGPT "+
 		"dataset button (github.com/HPMLL/BurstGPT releases); missing: the button is disabled")
 	azure := fs.String("trace-azure", ".cache/traces/AzureLLMInferenceTrace_code_1week.csv", "Azure LLM inference trace CSV "+
@@ -59,8 +64,8 @@ func runDemo(args []string) error {
 	}
 	observing := *observeGW != "" || *observeCtl != ""
 	switch {
-	case observing && (*observeGW == "" || *observeCtl == "" || *observeKeys == ""):
-		return errors.New("demo: -observe-gateway, -observe-controller and -observe-keys go together")
+	case observing && (*observeGW == "" || *observeCtl == ""):
+		return errors.New("demo: -observe-gateway and -observe-controller go together")
 	case observing && *live != "":
 		return errors.New("demo: -live and -observe-gateway exclude each other")
 	case *sideBySide && *live == "":
@@ -87,7 +92,7 @@ func runDemo(args []string) error {
 	var adminKey string
 	if observing {
 		info = demo.ObservedBackend(cfg, info.ConfigPath, *observeReplicas == "llama")
-		if adminKey, err = envValue(*observeKeys, "TS_ADMIN_KEY"); err != nil {
+		if adminKey, err = observeAdminKey(*observeKeys); err != nil {
 			return err
 		}
 	}
@@ -157,6 +162,21 @@ func runDemo(args []string) error {
 // envValue returns key's value from an env file of KEY=VALUE lines without
 // putting it into the process environment (the cluster's admin key must
 // not replace this machine's).
+// observeAdminKey returns the observed cluster's admin key. In Kubernetes
+// the dashboard runs as a pod and the key arrives as $TS_ADMIN_KEY from the
+// Secret tenantscaler-keys (deploy/k8s/50-dashboard.yaml), so a file is only
+// one of the two ways; -observe-keys still names one for a dashboard run from
+// your own shell. Either way the key is never printed.
+func observeAdminKey(path string) (string, error) {
+	if path != "" {
+		return envValue(path, "TS_ADMIN_KEY")
+	}
+	if key := envfile.Get("TS_ADMIN_KEY", ""); key != "" {
+		return key, nil
+	}
+	return "", errors.New("demo: observing a cluster needs its admin key: set $TS_ADMIN_KEY or pass -observe-keys <env file>")
+}
+
 func envValue(path, key string) (string, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {

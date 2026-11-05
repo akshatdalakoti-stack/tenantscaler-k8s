@@ -1,0 +1,125 @@
+# The dashboard, in the cluster.
+#
+# On the hackathon laptop this ran on Windows and reached the cluster through
+# two `kubectl port-forward` processes that had to be restarted whenever the
+# pods were replaced, and one of them once dropped requests under load. As a
+# pod it talks to the Services directly, so there is nothing to keep alive
+# and nothing in the data path.
+#
+# It OBSERVES: -observe-gateway and -observe-controller put it in a read-only
+# mode where it starts no stack of its own and runs no traffic. Every few
+# seconds it reads the gateway's /stats and the controller's /status, and the
+# decision log from /decisions. The traffic comes from the three tenants in
+# 60-tenant-load.yaml.
+#
+# -observe-replicas only chooses the badge, and the committed value says
+# llama because deploy/kind runs real llama.cpp pods. A simulated run sets
+# TS_OBSERVE_REPLICAS=simulated instead (scripts/up.ps1 -Simulated does it),
+# so the badge never claims real inference that is not there.
+#
+# -log-dir "" because the root filesystem is read-only and an observing
+# dashboard has nothing to write: no replicas of its own, no decision file.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dashboard
+  namespace: tenantscaler
+  labels:
+    app.kubernetes.io/name: dashboard
+    app.kubernetes.io/part-of: tenantscaler
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: dashboard
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: dashboard
+        app.kubernetes.io/part-of: tenantscaler
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: dashboard
+          image: tenantscaler:dev
+          imagePullPolicy: IfNotPresent
+          args:
+            - demo
+            - -addr
+            - :8080
+            - -config
+            - /etc/tenantscaler/config.yaml
+            - -observe-gateway
+            - http://gateway:8080
+            - -observe-controller
+            - http://tenantscaler-controller:8090
+            - -log-dir
+            - ""
+          env:
+            - name: TS_OBSERVE_REPLICAS
+              value: llama
+            - name: TS_ADMIN_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: tenantscaler-keys
+                  key: TS_ADMIN_KEY
+          ports:
+            - name: http
+              containerPort: 8080
+          volumeMounts:
+            - name: config
+              mountPath: /etc/tenantscaler
+              readOnly: true
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+          resources:
+            requests:
+              cpu: 100m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+      volumes:
+        - name: config
+          configMap:
+            name: tenantscaler-config
+---
+# NodePort 30080, which deploy/kind/kind-config.yaml maps to
+# 127.0.0.1:8080 on the host: the one URL you open.
+apiVersion: v1
+kind: Service
+metadata:
+  name: dashboard
+  namespace: tenantscaler
+  labels:
+    app.kubernetes.io/name: dashboard
+    app.kubernetes.io/part-of: tenantscaler
+spec:
+  type: NodePort
+  selector:
+    app.kubernetes.io/name: dashboard
+  ports:
+    - name: http
+      port: 8080
+      targetPort: http
+      nodePort: 30080

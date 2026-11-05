@@ -1,13 +1,17 @@
 # Narrate, in plain words, what the live demo's backend is doing, for a
-# terminal next to the dashboard (DEMO.md). It reads the dashboard's own API
+# terminal next to the dashboard (RUNBOOK.md). It reads the dashboard's own API
 # (no keys) and prints only what changed:
 #   CONTROLLER  each tenant's grant and the controller's own reason
 #   POOL        the pool size the controller applies
 #   REPLICAS    llama.cpp replicas ready, starting and the target
 #   TRAFFIC     per tenant every 10 s: requests/s, 429s, p99 time to first token
-#   CPU         llama-server processes and the laptop's CPU, every 10 s
-# Run it in its own PowerShell window while `demo -live` runs; Ctrl+C stops:
+#   CPU         llama-server processes and this PC's CPU, every 10 s
+# Run it in its own PowerShell window next to the dashboard; Ctrl+C stops it:
 #   ./scripts/demo/explain.ps1
+# It works against the in-cluster dashboard too, since kind maps it to the
+# same 127.0.0.1:8080. The CPU section then finds no llama-server processes,
+# because the replicas are pods: use `kubectl -n tenantscaler top pods`
+# instead (needs metrics-server).
 param([string]$Dashboard = 'http://127.0.0.1:8080', [int]$Every = 2)
 $ErrorActionPreference = 'Stop'
 $colors = @{ CONTROLLER = 'Cyan'; POOL = 'Cyan'; REPLICAS = 'Yellow'; TRAFFIC = 'Green'; CPU = 'Magenta'; TENANTS = 'White'; ERROR = 'Red' }
