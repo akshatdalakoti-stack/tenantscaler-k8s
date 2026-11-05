@@ -31,8 +31,9 @@ const builtinConfig = "built-in default"
 
 // BackendInfo describes the replica backend for the dashboard.
 type BackendInfo struct {
-	// Kind is config.BackendLlama or config.BackendSimulated; Simulated is
-	// true for the simulated engine.
+	// Kind is config.BackendLlama, config.BackendSimulated, or
+	// BackendKubernetes when the dashboard observes a cluster instead of
+	// running its own replicas; Simulated is true for the simulated engine.
 	Kind      string `json:"kind"`
 	Simulated bool   `json:"simulated"`
 	// Label is the header badge text: "REAL: llama.cpp + <model> on N

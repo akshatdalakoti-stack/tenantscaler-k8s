@@ -121,3 +121,31 @@ func TestOptionsValidation(t *testing.T) {
 		t.Errorf("normalized options %+v", srv.opt)
 	}
 }
+
+// A dashboard observing a cluster sends no traffic of its own, so a scenario
+// tenant the config does not list is not a fault: the cluster's tenants are
+// lower case because a TenantScaler's name is its fairness id, while the
+// scenario names them A, B and C. Requiring a match here crash-looped the
+// in-cluster dashboard (deploy/k8s/50-dashboard.yaml), which mounts the
+// cluster's own config.
+func TestObservingAcceptsScenarioTenantsOutsideTheConfig(t *testing.T) {
+	opt := testOptions(t)
+	opt.Backend = ObservedBackend(opt.Config, "test", true)
+	opt.Scenario = workload.RealDemoScenario()
+	for i := range opt.Scenario.Tenants {
+		opt.Scenario.Tenants[i].Tenant = strings.ToUpper(opt.Scenario.Tenants[i].Tenant)
+	}
+	lower := opt.Config.Tenants[0].Name
+	opt.Config.Tenants[0].Name = strings.ToLower(lower)
+	if _, err := New(opt); err != nil {
+		t.Fatalf("observing a cluster: %v", err)
+	}
+
+	// The check still applies when this dashboard is the one sending the
+	// requests, which is the case it exists for.
+	opt.Backend = ObservedBackend(opt.Config, "test", true)
+	opt.Backend.Kind = config.BackendSimulated
+	if _, err := New(opt); err == nil || !strings.Contains(err.Error(), "is not in the config") {
+		t.Fatalf("running its own traffic: err %v, want one about a tenant not in the config", err)
+	}
+}

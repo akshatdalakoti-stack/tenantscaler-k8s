@@ -44,9 +44,14 @@ type ObserveTarget struct {
 // labels: its replicas are the simulated engine of deploy/k8s, or with llama
 // the llama.cpp pods of deploy/kind. cfg (from configPath) only sizes
 // the dashboard's axes.
+// BackendKubernetes is BackendInfo.Kind when the dashboard is observing a
+// cluster rather than running replicas itself. Only ObservedBackend sets it,
+// so it is also how the rest of the package recognises observe mode.
+const BackendKubernetes = "kubernetes"
+
 func ObservedBackend(cfg config.Config, configPath string, llama bool) BackendInfo {
 	b := BackendInfo{
-		Kind: "kubernetes", Simulated: true,
+		Kind: BackendKubernetes, Simulated: true,
 		Label: "KUBERNETES: SIMULATED replicas",
 		Detail: "TenantScaler runs in the Kubernetes cluster: its controller scales the model-pool Deployment and its " +
 			"gateway serves the three tenants' traffic. This dashboard only reads the cluster's gateways (/stats) and " +

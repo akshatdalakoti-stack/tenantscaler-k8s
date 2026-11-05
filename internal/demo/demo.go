@@ -133,13 +133,23 @@ func (o Options) normalize() (Options, error) {
 	if err := o.Scenario.Validate(); err != nil {
 		return o, fmt.Errorf("demo: %w", err)
 	}
-	known := map[string]bool{}
-	for _, t := range o.Config.Tenants {
-		known[t.Name] = true
-	}
-	for _, t := range o.Scenario.Tenants {
-		if !known[t.Tenant] {
-			return o, fmt.Errorf("demo: scenario tenant %q is not in the config (the gateway would answer 400)", t.Tenant)
+	// The scenario's tenants must exist in the config, because otherwise the
+	// gateway answers 400 to the traffic this dashboard is about to send.
+	// When observing a cluster it sends none: the traffic comes from the
+	// cluster's own tenant pods, and the tenants on screen are read from the
+	// gateway's /stats. The check would then fail for a reason that is not a
+	// fault at all -- a TenantScaler's name is its fairness id and
+	// Kubernetes names are lower case, so the cluster has a, b, c while the
+	// scenario names them A, B, C.
+	if o.Backend.Kind != BackendKubernetes {
+		known := map[string]bool{}
+		for _, t := range o.Config.Tenants {
+			known[t.Name] = true
+		}
+		for _, t := range o.Scenario.Tenants {
+			if !known[t.Tenant] {
+				return o, fmt.Errorf("demo: scenario tenant %q is not in the config (the gateway would answer 400)", t.Tenant)
+			}
 		}
 	}
 	if o.InitialReplicas < 0 || o.SampleEvery < 0 || o.Window < 0 || o.DrainTimeout < 0 || o.Cooldown < 0 {
