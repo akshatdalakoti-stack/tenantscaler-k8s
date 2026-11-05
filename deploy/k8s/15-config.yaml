@@ -54,14 +54,34 @@ data:
       cycleSeconds: 10
       headroom: 0.2
       # Weighted tokens/s (input + 2 x output) one replica serves while the
-      # whole budget is busy. 117 was measured on bare metal with one
-      # llama-server per physical P-core (results/real/scaling.md). A pod in
-      # the kind node container is not pinned and shares the host with
-      # Docker's VM, so treat it as a starting value and re-measure with
-      # `tenantscaler profile -config config/real.yaml` on the machine you
-      # are on. The controller only uses it to turn a token rate into a
-      # replica count, so being high makes it grant too few replicas.
-      replicaCapacityTokensPerSec: 117
+      # whole budget is busy. The controller divides each tenant's demand by
+      # this to turn a token rate into a replica count, so a value that is
+      # too high makes it grant too few replicas and everyone queues.
+      #
+      # MEASURED ON THIS CLUSTER (2026-11-05) with
+      #   python scripts/measure-capacity.py --levels 1,2,4 --window 90
+      # which reads each llama-server's own prompt_tokens_total and
+      # tokens_predicted_total while one tenant offers more than the pool
+      # can serve:
+      #
+      #   replicas   aggregate   per replica
+      #   1          100.7       100.7
+      #   2          165.7        82.9
+      #   4          241.5        60.4     <- C, at the budget of 4
+      #
+      # Bare metal, one CPU-pinned llama-server per physical P-core,
+      # measured 136 alone and 117 at a budget of 4. These pods are not
+      # pinned and share the host with the kind control plane and the rest
+      # of the namespace, so they start lower AND lose far more to
+      # contention: 0.60 of the single-replica rate against 0.86. Adding
+      # replicas here buys much less than it does on bare metal, which is
+      # worth knowing before reading any latency off this cluster.
+      #
+      # The committed 117 credited each replica with nearly twice the
+      # throughput it has, so the controller under-sized the pool and
+      # tenant a sat at a p99 TTFT of 7.3 s against its 2 s SLO. Re-measure
+      # with that script on any other machine.
+      replicaCapacityTokensPerSec: 60
       scaleDownWindowSeconds: 60
       maxStepPerCycle: 2
       retryAfterSeconds: 2

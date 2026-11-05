@@ -38,6 +38,23 @@ kubectl -n tenantscaler rollout restart deployment/gateway deployment/tenantscal
 
 A smaller machine wants a smaller budget. Each llama pod asks for 2 CPUs and 1 GiB and gets both as limits, so a budget of 4 reserves 8 CPUs and 4 GiB inside Docker's VM. If pods sit in `Pending`, that is why — `kubectl -n tenantscaler describe pod <name>` will say `Insufficient cpu`. Drop the budget to 2 and give the tenants a guarantee of 1 and a cap of 2.
 
+## Measuring the replica capacity
+
+`controller.replicaCapacityTokensPerSec` in `deploy/k8s/15-config.yaml` is the one setting you cannot copy from another machine. The controller divides each tenant's demand by it to get a replica count, so if it is too high the pool is under-sized and every tenant queues behind its SLO — which is exactly what happened here with the bare-metal value of 117 against a true 60.
+
+```bash
+python scripts/measure-capacity.py --levels 1,2,4 --window 90
+```
+
+It freezes the controller so nothing resizes the pool mid-measurement, scales b and c to zero and points a at a long spike so one standard-class tenant offers more than the pool can serve, then walks the pool through each level and reads every replica's own `llamacpp:prompt_tokens_total` and `llamacpp:tokens_predicted_total` over the window. The cluster is restored in a `finally` block, so an interrupted run does not leave your laptop driving spike traffic with no controller. Put the number it prints for the largest level into `15-config.yaml`, then:
+
+```bash
+kubectl apply -f deploy/k8s/15-config.yaml
+kubectl -n tenantscaler rollout restart deployment/gateway deployment/tenantscaler-controller
+```
+
+Two things to know about the instrument. It reads the engine's counters rather than the gateway's `admittedWeightedTokensPerSec`, because that metric is arrivals minus shed, counted at admission — it is bounded by the arrival rate and the shedding policy, not by what the replicas got through, so it looks like a throughput measure and is not one. And expect the per-replica figure to *fall* as levels rise: pods on one PC contend for the same cores, and here four keep only 0.60 of a lone replica's rate.
+
 ## Watching it
 
 ```bash

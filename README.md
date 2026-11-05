@@ -155,6 +155,7 @@ The dashboard shows one run, which is one sample. The numbers worth quoting come
 | `tenantscaler profile -config config/real.yaml` | REAL, host-side: drives one replica at concurrency 1..6; reports TTFT/TPOT/throughput, the capacity C, and checks the simulated engine's calibration against it. |
 | `tenantscaler loadgen`, `baseline` | Replay a scenario against any OpenAI-compatible endpoint; run a KEDA/HPA baseline on a pool. |
 | `tenantscaler config -config <file>` | Validate a config. It rejects guarantees that exceed the budget. |
+| `python scripts/measure-capacity.py` | REAL, in-cluster: the replica capacity C that `15-config.yaml` needs, read from each `llama-server`'s own token counters at a range of pool sizes. Run this on any new machine before trusting a latency from it. |
 
 `results/` is generated output and is **not committed** — a fresh clone has none, and the commands above are how you get it. In-cluster baselines live in `deploy/k8s/baselines/`: each replaces the TenantScaler controller on the same pool, which is what the simulated setups S1 and S2 are. They need the passthrough gateway, because a fair gateway holds the backlog in its own queue and a queue-based autoscaler would never see it:
 
@@ -212,12 +213,17 @@ c      shared-llm-pool   1            3     2       4        true
 
 When c and b went quiet instead, the log reads *"its guarantee of 1 is free for others to borrow until it needs it back"*, and the stabiliser held the pool up rather than collapsing it: *"desired 1 of 4, applying 4. Scale-down waits for demand to stay low for 60s."* Over 80 cycles there was no fail-static.
 
-**The one number that needs re-measuring is `replicaCapacityTokensPerSec`.** In a cycle where the pool had been sized to 3, tenant a showed a p99 TTFT of 7.3 s against its 2 s SLO. The committed 117 is a bare-metal figure from one CPU-pinned `llama-server` per physical P-core; these pods are neither pinned nor on bare metal, so the controller credits each replica with more throughput than it has and under-sizes the pool. That is a calibration input, not a fairness failure — the shares themselves were honoured throughout — but it has to be re-measured here before any latency from this cluster means anything:
+**`replicaCapacityTokensPerSec` was wrong here, and is now measured.** The committed 117 came from bare metal with one CPU-pinned `llama-server` per physical P-core. These pods are neither pinned nor on bare metal, and the first runs showed it: in a cycle where the pool had been sized to 3, tenant a reached a p99 TTFT of 7.3 s against its 2 s SLO. Measured on this cluster with `python scripts/measure-capacity.py --levels 1,2,4 --window 90`, which reads each `llama-server`'s own token counters while one tenant offers more than the pool can serve:
 
-```powershell
-./scripts/setup-llama.ps1
-bin/tenantscaler.exe profile -config config/real.yaml
-```
+| replicas | aggregate weighted tokens/s | per replica |
+|---|---|---|
+| 1 | 100.7 | 100.7 |
+| 2 | 165.7 | 82.9 |
+| 4 | 241.5 | **60.4** |
+
+So C is 60, not 117 — the controller had been crediting each replica with nearly twice the throughput it has, and under-sizing the pool accordingly. The curve also says something the bare-metal numbers cannot: replicas here keep only 0.60 of their single-replica rate at a budget of 4, against 0.86 on bare metal, so adding pods on one PC buys considerably less than adding pinned processes does.
+
+With C corrected the pool holds at its full budget of 4 rather than stopping at 3, and tenant a's p99 TTFT drops from 7.3 s to roughly 1–2.5 s with attainment often at 100%. Individual 15-second windows still vary, and some show misses for all three tenants at once — these are short windows on a laptop, not the repeated interleaved runs that `experiment` and `realrun` exist for, so treat them as evidence the calibration was the problem, not as an SLO result.
 
 If Docker Desktop will not start, see the first entry under *When something is wrong* in `RUNBOOK.md`.
 
