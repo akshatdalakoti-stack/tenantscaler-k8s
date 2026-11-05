@@ -728,7 +728,7 @@ the middle of a spike (`TestFlowControlMetricBlindSpot`). The test now records t
   such fallbacks (expected 0). The simulated path counts words by design. The load generator's
   records use the server's `usage` counts.
 
-## 23. Live multi-laptop demo
+## 23. Live mode
 
 - **Keys:** `TS_TENANT_KEYS="A:standard=<key>,B:standard=<key>,C:sheddable=<key>"` (`gateway.ParseTenantKeys`).
   A key decides the tenant and its highest priority; a priority header may only lower it; a
@@ -743,10 +743,9 @@ the middle of a spike (`TestFlowControlMetricBlindSpot`). The test now records t
   `gateway.slotsPerReplica: 2` (measured p99 TTFT 1.318 s at concurrency 2 vs 1.816 s at 4,
   `results/real/profile.md`). The dashboard shows no banner; the presenter says the live
   numbers are not experiment results.
-- **Teammates:** `tenantscaler loadgen -gateway http://<ip>:8081 -key <key> -profile
-  steady|periodic|spike [-spike-now]` (cross-compiled into `dist/` by `scripts/build-dist.*`)
-  sends one tenant's pattern from the real scenario and prints a line every 10 s.
-- **Network:** `scripts/demo/firewall.ps1` adds one inbound TCP rule on the Private profile
-  (and removes it with `-Remove`); it is run only with the owner's approval. Headline
-  experiments never use this path: they use the local, pinned load generator.
+- **External load:** `tenantscaler loadgen -gateway http://<ip>:8081 -key <key> -profile
+  steady|periodic|spike [-spike-now]` sends one tenant's pattern from the real scenario and
+  prints a line every 10 s. Reaching the port from another machine needs an inbound firewall
+  rule, which this repository deliberately does not add for you. Headline experiments never
+  use this path: they use the local, pinned load generator.
 

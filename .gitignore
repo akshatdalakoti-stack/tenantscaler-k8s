@@ -25,9 +25,6 @@ __pycache__/
 Thumbs.db
 desktop.ini
 
-# Cross-compiled binaries (scripts/build-dist.*)
-dist/
-
 # Experiment / benchmark results (generated output)
 /results/
 
