@@ -188,7 +188,7 @@ The `internal/k8s` tests are worth knowing about: they parse every manifest unde
 
 ## Status
 
-Unit tests, `go vet` and `./scripts/lint.ps1` pass, and the manifests are checked by the tests above. Verified by hand too: the three PowerShell scripts parse, `scripts/keys.ps1` writes a key file in the LF, no-BOM shape `kubectl --from-env-file` needs, and the gateway starts on the cluster's own config with those keys (`config OK: pool "shared-llm-pool" capacity 4 replicas, 3 tenants`, then `tenantKeys=3 adminKey=true`, dispatch window 2 per replica).
+Unit tests, `go vet` and `./scripts/lint.ps1` pass. Every manifest, the new ones included, is decoded into its typed Go struct with strict field validation — the same rules the API server applies, so a misspelled, wrongly cased or misplaced field fails the build rather than the deploy. Verified by hand too: the three PowerShell scripts parse, `scripts/keys.ps1` writes a key file in the LF, no-BOM shape `kubectl --from-env-file` needs, and the gateway starts on the cluster's own config with those keys (`config OK: pool "shared-llm-pool" capacity 4 replicas, 3 tenants`, then `tenantKeys=3 adminKey=true`, dispatch window 2 per replica). The model is downloaded and its SHA-256 matches the pin.
 
 What has **not** run yet is the cluster itself, end to end. Docker Desktop 4.90.0 on this machine crashes at startup on a socket it cannot rename, which is a local fault rather than a project one — both `sailor-ingest.sock` and its `.stale` target exist, so the rename has nowhere to go. With Docker Desktop not running:
 
