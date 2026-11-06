@@ -246,4 +246,4 @@ Copy `.env.example` to `.env` to set them for host-side runs. `.env` is git-igno
 
 ## Credits
 
-Qwen2.5-0.5B-Instruct (Apache-2.0) and llama.cpp (MIT) carry their own licences. The dashboard's 3D spider uses three.js r170 (MIT), vendored with its licence; headings use the Bangers font by Vernon Adams (SIL OFL 1.1), self-hosted with its licence. Visual inspiration: Era Namjoshi's portfolio, via Site of Sites.
+Qwen2.5-0.5B-Instruct (Apache-2.0) and llama.cpp (MIT) carry their own licences. The dashboard's headings use the Bangers font by Vernon Adams (SIL OFL 1.1), self-hosted with its licence; its charts, tables and decoration are hand-written, so it ships no third-party JavaScript. Visual inspiration: Era Namjoshi's portfolio, via Site of Sites.
