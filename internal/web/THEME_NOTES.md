@@ -26,6 +26,7 @@ Nothing is taken from that site but these style ideas: no images, logos, charact
 2. **3D spider, themed motion, polish.** "TenantScaler" and acronyms in caps, sentence case elsewhere (no lowercase transform); three.js r170 vendored; webs spun in on first load, then still; the webs on each panel's side tremble with that stack's request rate during a run; the hero cut to one line; empty charts say "Waiting for a run: press Run A/B"; the offline banner shows the start command.
 3. **Detailed original 3D spider and chart fixes.** An anatomical spider (below) on the hero web and at 40 px as the toggle, one renderer; TTFT chart: dashed "SLO" line, y = max(1.25 x SLO, data max); replicas chart: whole-number ticks 0 to the budget with a dashed "budget" line; x axis = run time, auto-ranged from the data; one consistent offline state ("Offline" pill and badges, no "Loading...").
 4. **Comic-print layer (chrome only).** Bangers headings with a static red/cyan misregistration; halftone dots in the hero and section headers; ink panels (2.5 px outline, hard 4 px offset shadow); caption boxes for decision-log events; a 250 ms red/cyan glitch on view and theme switches.
+5. **The 3D spider removed.** Rounds 2 and 3 above are history, not the current page: `spider3d.js` and the vendored three.js r170 are gone, and the SVG spider that was their fallback is now the only one. The dashboard ships no third-party JavaScript.
 
 ## What is drawn, and how
 
@@ -44,15 +45,9 @@ Nothing is taken from that site but these style ideas: no images, logos, charact
 
 ## Calm, motion and performance
 
-- **Calm** (top bar, remembered) freezes all decoration: no 3D (the WebGL layer is hidden), SVG spiders, no tremble, no captions, no glitch. It comes on by itself during runs on **real** replicas, where decoration would share the CPU with the replicas being measured, and can still be switched off for the show; simulated runs show the tremble and captions. (An earlier round turned Calm on for every run; then the data-linked tremble could never be seen, so it now applies to real replicas only.)
-- **Frames on demand**: 3D at most 30 frames/s while something moves on purpose (the toggle), at most 15 for the hero's idle life, nothing when the hero is off screen (IntersectionObserver), the tab is hidden or Calm is on; device pixel ratio at most 1.5. 2D webs: frames only while spinning in or trembling, at most 30/s.
-- **Frame times** from DevTools Performance traces (`FireAnimationFrame` on the renderer main thread: our render code plus WebGL submission), in headless Edge with software WebGL (SwiftShader) on 4 E-cores at low priority, so a real GPU is lighter:
-
-| Trace | Frames/s | Main-thread time per frame, mean | p95 | GPU process tasks |
-|---|---|---|---|---|
-| Idle, dark (4 s) | 13.5 | 2.26 ms | 3.46 ms | 15.6 ms/s |
-| Idle, light (4 s) | 13.7 | 2.06 ms | 3.19 ms | 15.5 ms/s |
-| Theme toggle (2.2 s, includes idle frames) | 21.1 | 1.67 ms | 2.19 ms | 27.5 ms/s |
+- **Calm** (top bar, remembered) freezes all decoration: no tremble, no captions, no glitch. It comes on by itself during runs on **real** replicas, where decoration would share the CPU with the replicas being measured, and can still be switched off for the show; simulated runs show the tremble and captions. (An earlier round turned Calm on for every run; then the data-linked tremble could never be seen, so it now applies to real replicas only.)
+- **Frames on demand**: the webs draw only while spinning in or trembling, at most 30/s, and nothing at all while the tab is hidden or Calm is on. Everything else on the page is static CSS and SVG, so an idle dashboard draws no animation frames.
+- The frame-time table that used to be here measured the WebGL renderer's main-thread cost. It is gone with the renderer; there is no longer a per-frame budget worth tracking.
 
   The page's own counters agree: 1.43 ms per animation frame, 2.62 ms per idle frame.
 - **Compare CPU before and after**: run the old dashboard (main branch, `bin\tenantscaler.exe demo`, port 8080) and this one (`demo -addr 127.0.0.1:8090`) in two browser tabs. In Edge, Shift+Esc opens the browser task manager with a CPU column per tab: read each tab idle for a minute, then during a run. Or Windows Task Manager > Processes > Microsoft Edge (expand) > the tab.
@@ -64,7 +59,7 @@ Nothing is taken from that site but these style ideas: no images, logos, charact
 ## Checks
 
 - `node internal/web/contrast.mjs` recomputes the tables below from `static/style.css` and exits 1 if any pair fails or the two light-token blocks differ.
-- `./internal/web/check-theme.ps1 [-Url http://127.0.0.1:8090/] [-NoWebGL] [-Width 1920 -Height 1080]` drives headless Microsoft Edge (shipped with Windows) in a throwaway InPrivate profile (no sign-in, sync or extensions), on CPUs 12-15 at low priority. Against the running demo: with WebGL 33/33 checks pass at 1366 x 768 and at 1920 x 1080; without WebGL (the fallback path) 27/27 at both sizes.
+- `./internal/web/check-theme.ps1 [-Url http://127.0.0.1:8090/] [-Width 1920 -Height 1080]` drives headless Microsoft Edge (shipped with Windows) in a throwaway InPrivate profile (no sign-in, sync or extensions), on CPUs 12-15 at low priority. It defines 29 checks. The recorded pass counts (33/33 with WebGL, 27/27 without) were for the two render paths and no longer apply now that there is one path; re-run it against a running demo at both sizes to record the current count.
 - `scripts/lint.ps1` (gofmt, go vet, node --check) and `scripts/test.ps1` pass, including the end-to-end smoke test `test/e2e` (it builds and starts the real binary on the simulated engine, checks `/healthz`, the dashboard's files and `/api/config`, runs a full A/B on the 6 s "tiny" scenario through the dashboard's API, and stops the process by PID; a real-replica variant runs when `TS_LLAMA_SERVER` and `TS_LLAMA_MODEL` are set).
 - Review screenshots, backend running (simulated engine, real-demo scenario), both themes at 1366 x 768 and 1920 x 1080: before a run, mid-run during C's spike on each stack (on the TenantScaler stack with a decision caption on screen, e.g. "Tenant C spike detected: it wants 3 replicas"), and after both stacks with the side-by-side section in view; plus close-ups of the hero and toggle spiders. 24 images, kept outside the repo.
 
