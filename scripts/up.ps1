@@ -118,9 +118,28 @@ if (-not $SkipBuild) {
 }
 
 # --------------------------------------------------------------- the cluster
-# kind prints one cluster name per line, and PowerShell hands a native
-# command's output back as an array of lines already.
-$existing = @(kind get clusters | ForEach-Object { $_.Trim() })
+# kind prints one cluster name per line -- but when there are none at all
+# it says "No kind clusters found." on *stderr* and still exits 0. That is
+# the ordinary answer on a machine that has never run kind, and piping a
+# native command's stderr anywhere in Windows PowerShell 5.1 wraps each
+# line in a NativeCommandError, which $ErrorActionPreference = 'Stop' then
+# throws -- see the note on Probe. So this only ever bit the very first
+# run, which is the worst run of all to break.
+#
+# The names arrive on stdout and the complaint on stderr, so dropping every
+# ErrorRecord and keeping the plain lines separates the two exactly. That
+# beats matching the sentence, which is kind's to reword whenever it likes.
+$existing = @(
+    $(
+        $old = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        try {
+            & kind get clusters 2>&1 | ForEach-Object {
+                if ($_ -isnot [Management.Automation.ErrorRecord]) { "$_".Trim() }
+            }
+        } finally { $ErrorActionPreference = $old }
+    ) | Where-Object { $_ }
+)
 if ($Recreate -and ($existing -contains $cluster)) {
     Step "deleting the cluster $cluster"
     Run kind @('delete', 'cluster', '--name', $cluster)
