@@ -207,20 +207,6 @@ func SummaryTable(sums []SetupSummary, metrics []Metric) Table {
 	return t
 }
 
-// StatsTable is the machine-readable summary in long format: one row per
-// setup and metric with n, mean, std and ci95.
-func StatsTable(sums []SetupSummary, metrics []Metric) Table {
-	t := Table{Header: []string{"setup", "metric", "n", "mean", "std", "ci95"}}
-	for _, s := range sums {
-		for i, mt := range metrics {
-			st := s.Stats[i]
-			t.Rows = append(t.Rows, []string{s.Setup, mt.Name, strconv.Itoa(st.N),
-				FormatValue(st.Mean), FormatValue(st.Std), FormatValue(st.CI95)})
-		}
-	}
-	return t
-}
-
 func formatStat(st Stat, runs int) string {
 	if st.N == 0 {
 		return "n/a"

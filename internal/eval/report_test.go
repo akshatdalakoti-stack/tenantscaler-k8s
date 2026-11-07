@@ -134,19 +134,6 @@ func TestSummaries(t *testing.T) {
 	if !reflect.DeepEqual(summary, wantSummary) {
 		t.Errorf("SummaryTable = %v, want %v", summary, wantSummary)
 	}
-	stats := StatsTable(sums, metrics)
-	wantStats := Table{
-		Header: []string{"setup", "metric", "n", "mean", "std", "ci95"},
-		Rows: [][]string{
-			{"S2", "victim_violation_pct", "3", "20.000", "10.000", "24.841"},
-			{"S2", "reaction_time_s", "2", "6.000", "1.414", "12.706"},
-			{"S7", "victim_violation_pct", "1", "1.000", "n/a", "n/a"},
-			{"S7", "reaction_time_s", "0", "n/a", "n/a", "n/a"},
-		},
-	}
-	if !reflect.DeepEqual(stats, wantStats) {
-		t.Errorf("StatsTable = %v, want %v", stats, wantStats)
-	}
 	if got := SummarizeRuns(nil, metrics); len(got) != 0 {
 		t.Errorf("SummarizeRuns(nil) = %v, want empty", got)
 	}
